@@ -284,8 +284,7 @@ func findSetMatchesFromAlternate(re *syntax.Regexp, base string) (matches []stri
 // clearCapture removes capture operation as they are not used for matching.
 func clearCapture(regs ...*syntax.Regexp) {
 	for _, r := range regs {
-		// Iterate on the regexp because capture groups could be nested.
-		for r.Op == syntax.OpCapture {
+		if r.Op == syntax.OpCapture {
 			*r = *r.Sub[0]
 		}
 	}

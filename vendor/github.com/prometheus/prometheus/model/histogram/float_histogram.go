@@ -323,7 +323,7 @@ func (h *FloatHistogram) Sub(other *FloatHistogram) *FloatHistogram {
 // because this method is about data equality rather than mathematical equality.
 func (h *FloatHistogram) Equals(h2 *FloatHistogram) bool {
 	if h2 == nil {
-		return false
+		return h == nil
 	}
 
 	if h.Schema != h2.Schema || h.ZeroThreshold != h2.ZeroThreshold ||
