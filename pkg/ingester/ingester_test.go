@@ -9464,6 +9464,7 @@ func TestIngester_SampledUserLimitExceeded(t *testing.T) {
 	ingesterCfg := defaultIngesterTestConfig(t)
 	ingesterCfg.IngesterRing.ReplicationFactor = 1
 	ingesterCfg.ErrorSampleRate = int64(errorSampleRate)
+	ingesterCfg.IngesterRing.InstanceZone = "zone-b"
 	ing, err := prepareIngesterWithBlocksStorageAndLimits(t, ingesterCfg, limits, dataDir, registry)
 	require.NoError(t, err)
 	require.NoError(t, services.StartAndAwaitRunning(context.Background(), ing))
@@ -9495,7 +9496,10 @@ func TestIngester_SampledUserLimitExceeded(t *testing.T) {
 	}()
 
 	inst := ring.InstanceDesc{Id: "test", Addr: listener.Addr().String()}
-	client, err := client.MakeIngesterClient(inst, defaultClientTestConfig(), client.NewMetrics(nil), util_test.NewTestingLogger(t))
+	cfg := defaultClientTestConfig()
+	cfg.CircuitBreaker.Enabled = true
+	cfg.GRPCClientConfig.ConnectTimeout = time.Second
+	client, err := client.MakeIngesterClient(inst, cfg, client.NewMetrics(nil), util_test.NewTestingLogger(t))
 	require.NoError(t, err)
 	defer client.Close()
 
