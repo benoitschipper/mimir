@@ -26,6 +26,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/concurrency"
+	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/middleware"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
@@ -175,7 +176,9 @@ type Config struct {
 
 	ErrorSampleRate int64 `yaml:"error_sample_rate" json:"error_sample_rate" category:"experimental"`
 
-	ReturnOnlyGRPCErrors bool `yaml:"return_only_grpc_errors" json:"return_only_grpc_errors" category:"experimental"`
+	ReturnOnlyGRPCErrors   bool                   `yaml:"return_only_grpc_errors" json:"return_only_grpc_errors" category:"experimental"`
+	FailingPercentageZoneB uint64                 `yaml:"failing_percentage_zone_b" json:"failing_percentage_zone_b" category:"experimental"`
+	FailingIngestersZoneB  flagext.StringSliceCSV `yaml:"failing_ingesters_zone_b" category:"failing_ingesters_zone_b"`
 
 	UseIngesterOwnedSeriesForLimits bool          `yaml:"use_ingester_owned_series_for_limits" category:"experimental"`
 	UpdateIngesterOwnedSeries       bool          `yaml:"track_ingester_owned_series" category:"experimental"`
@@ -200,6 +203,8 @@ func (cfg *Config) RegisterFlags(f *flag.FlagSet, logger log.Logger) {
 	f.Int64Var(&cfg.ErrorSampleRate, "ingester.error-sample-rate", 0, "Each error will be logged once in this many times. Use 0 to log all of them.")
 	f.BoolVar(&cfg.ReturnOnlyGRPCErrors, "ingester.return-only-grpc-errors", false, "When enabled only gRPC errors will be returned by the ingester.")
 	f.BoolVar(&cfg.UseIngesterOwnedSeriesForLimits, "ingester.use-ingester-owned-series-for-limits", false, "When enabled, only series currently owned by ingester according to the ring are used when checking user per-tenant series limit.")
+	f.Uint64Var(&cfg.FailingPercentageZoneB, "ingester.failing-percentage-zone-b", 0, "Percentage of push request in zone b that should fail.")
+	f.Var(&cfg.FailingIngestersZoneB, "ingester.failing-ingesters-zone-b", "Comma-separated list of ingesters from zone-b that should fail.")
 	f.BoolVar(&cfg.UpdateIngesterOwnedSeries, "ingester.track-ingester-owned-series", false, "This option enables tracking of ingester-owned series based on ring state, even if -ingester.use-ingester-owned-series-for-limits is disabled.")
 	f.DurationVar(&cfg.OwnedSeriesUpdateInterval, "ingester.owned-series-update-interval", 15*time.Second, "How often to check for ring changes and possibly recompute owned series as a result of detected change.")
 }
@@ -3247,11 +3252,13 @@ func (i *Ingester) slowDown(duration time.Duration) {
 // Push implements client.IngesterServer
 func (i *Ingester) Push(ctx context.Context, req *mimirpb.WriteRequest) (*mimirpb.WriteResponse, error) {
 	// we are making 10% of request to ingesters 6 and 7 from zone-b slow
-	if i.cfg.IngesterRing.InstanceID == "ingester-zone-b-6" || i.cfg.IngesterRing.InstanceID == "ingester-zone-b-7" {
-		pivot := rand.Intn(100)
-		if pivot%10 == 0 {
-			i.slowDown(5 * time.Second)
-			level.Error(i.logger).Log("msg", "slept for 5s and will continue", "ingester", i.cfg.IngesterRing.InstanceID)
+	if i.cfg.FailingPercentageZoneB > 0 && i.cfg.FailingPercentageZoneB <= 100 {
+		if slices.Contains(i.cfg.FailingIngestersZoneB, i.cfg.IngesterRing.InstanceID) {
+			pivot := uint64(rand.Intn(100))
+			if pivot%i.cfg.FailingPercentageZoneB == 0 {
+				i.slowDown(5 * time.Second)
+				level.Error(i.logger).Log("msg", "slept for 5s and will continue", "ingester", i.cfg.IngesterRing.InstanceID)
+			}
 		}
 	}
 	err := i.PushWithCleanup(ctx, req, func() { mimirpb.ReuseSlice(req.Timeseries) })
