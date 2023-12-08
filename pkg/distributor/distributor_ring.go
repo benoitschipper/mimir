@@ -37,11 +37,11 @@ func (cfg *RingConfig) RegisterFlags(f *flag.FlagSet, logger log.Logger) {
 	cfg.Common.RegisterFlags(flagNamePrefix, "collectors/", "distributors", f, logger)
 
 	const heartbeatTimeoutDefault = 4 * time.Minute
-	f.Lookup(flagNamePrefix + "heartbeat-timeout").Value.Set(heartbeatTimeoutDefault.String())
+	_ = f.Lookup(flagNamePrefix + "heartbeat-timeout").Value.Set(heartbeatTimeoutDefault.String())
 	f.Lookup(flagNamePrefix + "heartbeat-timeout").DefValue = heartbeatTimeoutDefault.String()
 
 	const heartbeatPeriodDefault = time.Minute
-	f.Lookup(flagNamePrefix + "heartbeat-period").Value.Set(heartbeatPeriodDefault.String())
+	_ = f.Lookup(flagNamePrefix + "heartbeat-period").Value.Set(heartbeatPeriodDefault.String())
 	f.Lookup(flagNamePrefix + "heartbeat-period").DefValue = heartbeatPeriodDefault.String()
 }
 
