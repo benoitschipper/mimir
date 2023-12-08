@@ -1509,7 +1509,7 @@
               "required": false,
               "desc": "Period at which to heartbeat to the ring. 0 = disabled.",
               "fieldValue": null,
-              "fieldDefaultValue": 15000000000,
+              "fieldDefaultValue": 60000000000,
               "fieldFlag": "distributor.ring.heartbeat-period",
               "fieldType": "duration",
               "fieldCategory": "advanced"
@@ -1520,7 +1520,7 @@
               "required": false,
               "desc": "The heartbeat timeout after which distributors are considered unhealthy within the ring. 0 = never (timeout disabled).",
               "fieldValue": null,
-              "fieldDefaultValue": 60000000000,
+              "fieldDefaultValue": 240000000000,
               "fieldFlag": "distributor.ring.heartbeat-timeout",
               "fieldType": "duration",
               "fieldCategory": "advanced"
@@ -2609,7 +2609,7 @@
               "required": false,
               "desc": "Period at which to heartbeat to the ring. 0 = disabled.",
               "fieldValue": null,
-              "fieldDefaultValue": 15000000000,
+              "fieldDefaultValue": 120000000000,
               "fieldFlag": "ingester.ring.heartbeat-period",
               "fieldType": "duration",
               "fieldCategory": "advanced"
@@ -2620,7 +2620,7 @@
               "required": false,
               "desc": "The heartbeat timeout after which ingesters are skipped for reads/writes. 0 = never (timeout disabled). This option needs be set on ingesters, distributors, queriers and rulers when running in microservices mode.",
               "fieldValue": null,
-              "fieldDefaultValue": 60000000000,
+              "fieldDefaultValue": 600000000000,
               "fieldFlag": "ingester.ring.heartbeat-timeout",
               "fieldType": "duration",
               "fieldCategory": "advanced"
@@ -9294,7 +9294,7 @@
               "required": false,
               "desc": "Period at which to heartbeat to the ring. 0 = disabled.",
               "fieldValue": null,
-              "fieldDefaultValue": 15000000000,
+              "fieldDefaultValue": 60000000000,
               "fieldFlag": "compactor.ring.heartbeat-period",
               "fieldType": "duration",
               "fieldCategory": "advanced"
@@ -9305,7 +9305,7 @@
               "required": false,
               "desc": "The heartbeat timeout after which compactors are considered unhealthy within the ring. 0 = never (timeout disabled).",
               "fieldValue": null,
-              "fieldDefaultValue": 60000000000,
+              "fieldDefaultValue": 240000000000,
               "fieldFlag": "compactor.ring.heartbeat-timeout",
               "fieldType": "duration",
               "fieldCategory": "advanced"
@@ -9755,7 +9755,7 @@
               "required": false,
               "desc": "Period at which to heartbeat to the ring. 0 = disabled.",
               "fieldValue": null,
-              "fieldDefaultValue": 15000000000,
+              "fieldDefaultValue": 60000000000,
               "fieldFlag": "store-gateway.sharding-ring.heartbeat-period",
               "fieldType": "duration",
               "fieldCategory": "advanced"
@@ -9766,7 +9766,7 @@
               "required": false,
               "desc": "The heartbeat timeout after which store gateways are considered unhealthy within the ring. 0 = never (timeout disabled). This option needs be set both on the store-gateway, querier and ruler when running in microservices mode.",
               "fieldValue": null,
-              "fieldDefaultValue": 60000000000,
+              "fieldDefaultValue": 240000000000,
               "fieldFlag": "store-gateway.sharding-ring.heartbeat-timeout",
               "fieldType": "duration",
               "fieldCategory": "advanced"

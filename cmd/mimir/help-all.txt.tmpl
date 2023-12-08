@@ -1004,9 +1004,9 @@ Usage of ./cmd/mimir/mimir:
   -compactor.ring.etcd.username string
     	Etcd username.
   -compactor.ring.heartbeat-period duration
-    	Period at which to heartbeat to the ring. 0 = disabled. (default 15s)
+    	Period at which to heartbeat to the ring. 0 = disabled. (default 1m0s)
   -compactor.ring.heartbeat-timeout duration
-    	The heartbeat timeout after which compactors are considered unhealthy within the ring. 0 = never (timeout disabled). (default 1m0s)
+    	The heartbeat timeout after which compactors are considered unhealthy within the ring. 0 = never (timeout disabled). (default 4m0s)
   -compactor.ring.instance-addr string
     	IP address to advertise in the ring. Default is auto-detected.
   -compactor.ring.instance-enable-ipv6
@@ -1204,9 +1204,9 @@ Usage of ./cmd/mimir/mimir:
   -distributor.ring.etcd.username string
     	Etcd username.
   -distributor.ring.heartbeat-period duration
-    	Period at which to heartbeat to the ring. 0 = disabled. (default 15s)
+    	Period at which to heartbeat to the ring. 0 = disabled. (default 1m0s)
   -distributor.ring.heartbeat-timeout duration
-    	The heartbeat timeout after which distributors are considered unhealthy within the ring. 0 = never (timeout disabled). (default 1m0s)
+    	The heartbeat timeout after which distributors are considered unhealthy within the ring. 0 = never (timeout disabled). (default 4m0s)
   -distributor.ring.instance-addr string
     	IP address to advertise in the ring. Default is auto-detected.
   -distributor.ring.instance-enable-ipv6
@@ -1402,9 +1402,9 @@ Usage of ./cmd/mimir/mimir:
   -ingester.ring.final-sleep duration
     	Duration to sleep for before exiting, to ensure metrics are scraped.
   -ingester.ring.heartbeat-period duration
-    	Period at which to heartbeat to the ring. 0 = disabled. (default 15s)
+    	Period at which to heartbeat to the ring. 0 = disabled. (default 2m0s)
   -ingester.ring.heartbeat-timeout duration
-    	The heartbeat timeout after which ingesters are skipped for reads/writes. 0 = never (timeout disabled). This option needs be set on ingesters, distributors, queriers and rulers when running in microservices mode. (default 1m0s)
+    	The heartbeat timeout after which ingesters are skipped for reads/writes. 0 = never (timeout disabled). This option needs be set on ingesters, distributors, queriers and rulers when running in microservices mode. (default 10m0s)
   -ingester.ring.instance-addr string
     	IP address to advertise in the ring. Default is auto-detected.
   -ingester.ring.instance-availability-zone string
@@ -2682,9 +2682,9 @@ Usage of ./cmd/mimir/mimir:
   -store-gateway.sharding-ring.etcd.username string
     	Etcd username.
   -store-gateway.sharding-ring.heartbeat-period duration
-    	Period at which to heartbeat to the ring. 0 = disabled. (default 15s)
+    	Period at which to heartbeat to the ring. 0 = disabled. (default 1m0s)
   -store-gateway.sharding-ring.heartbeat-timeout duration
-    	The heartbeat timeout after which store gateways are considered unhealthy within the ring. 0 = never (timeout disabled). This option needs be set both on the store-gateway, querier and ruler when running in microservices mode. (default 1m0s)
+    	The heartbeat timeout after which store gateways are considered unhealthy within the ring. 0 = never (timeout disabled). This option needs be set both on the store-gateway, querier and ruler when running in microservices mode. (default 4m0s)
   -store-gateway.sharding-ring.instance-addr string
     	IP address to advertise in the ring. Default is auto-detected.
   -store-gateway.sharding-ring.instance-availability-zone string

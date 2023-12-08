@@ -865,12 +865,12 @@ ring:
 
   # (advanced) Period at which to heartbeat to the ring. 0 = disabled.
   # CLI flag: -distributor.ring.heartbeat-period
-  [heartbeat_period: <duration> | default = 15s]
+  [heartbeat_period: <duration> | default = 1m]
 
   # (advanced) The heartbeat timeout after which distributors are considered
   # unhealthy within the ring. 0 = never (timeout disabled).
   # CLI flag: -distributor.ring.heartbeat-timeout
-  [heartbeat_timeout: <duration> | default = 1m]
+  [heartbeat_timeout: <duration> | default = 4m]
 
   # (advanced) Instance ID to register in the ring.
   # CLI flag: -distributor.ring.instance-id
@@ -977,14 +977,14 @@ ring:
 
   # (advanced) Period at which to heartbeat to the ring. 0 = disabled.
   # CLI flag: -ingester.ring.heartbeat-period
-  [heartbeat_period: <duration> | default = 15s]
+  [heartbeat_period: <duration> | default = 2m]
 
   # (advanced) The heartbeat timeout after which ingesters are skipped for
   # reads/writes. 0 = never (timeout disabled). This option needs be set on
   # ingesters, distributors, queriers and rulers when running in microservices
   # mode.
   # CLI flag: -ingester.ring.heartbeat-timeout
-  [heartbeat_timeout: <duration> | default = 1m]
+  [heartbeat_timeout: <duration> | default = 10m]
 
   # Number of ingesters that each time series is replicated to. This option
   # needs be set on ingesters, distributors, queriers and rulers when running in
@@ -4047,12 +4047,12 @@ sharding_ring:
 
   # (advanced) Period at which to heartbeat to the ring. 0 = disabled.
   # CLI flag: -compactor.ring.heartbeat-period
-  [heartbeat_period: <duration> | default = 15s]
+  [heartbeat_period: <duration> | default = 1m]
 
   # (advanced) The heartbeat timeout after which compactors are considered
   # unhealthy within the ring. 0 = never (timeout disabled).
   # CLI flag: -compactor.ring.heartbeat-timeout
-  [heartbeat_timeout: <duration> | default = 1m]
+  [heartbeat_timeout: <duration> | default = 4m]
 
   # (advanced) Instance ID to register in the ring.
   # CLI flag: -compactor.ring.instance-id
@@ -4146,14 +4146,14 @@ sharding_ring:
 
   # (advanced) Period at which to heartbeat to the ring. 0 = disabled.
   # CLI flag: -store-gateway.sharding-ring.heartbeat-period
-  [heartbeat_period: <duration> | default = 15s]
+  [heartbeat_period: <duration> | default = 1m]
 
   # (advanced) The heartbeat timeout after which store gateways are considered
   # unhealthy within the ring. 0 = never (timeout disabled). This option needs
   # be set both on the store-gateway, querier and ruler when running in
   # microservices mode.
   # CLI flag: -store-gateway.sharding-ring.heartbeat-timeout
-  [heartbeat_timeout: <duration> | default = 1m]
+  [heartbeat_timeout: <duration> | default = 4m]
 
   # (advanced) The replication factor to use when sharding blocks. This option
   # needs be set both on the store-gateway, querier and ruler when running in
