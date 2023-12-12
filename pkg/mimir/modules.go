@@ -26,6 +26,8 @@ import (
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
+	"github.com/prometheus/alertmanager/featurecontrol"
+	"github.com/prometheus/alertmanager/matchers/compat"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/config"
 	"github.com/prometheus/prometheus/model/labels"
@@ -878,6 +880,19 @@ func (t *Mimir) initRuler() (serv services.Service, err error) {
 }
 
 func (t *Mimir) initAlertManager() (serv services.Service, err error) {
+	// Initialize a logger so we can log which mode Alertmanager is starting in.
+	logger := log.With(util_log.Logger, "component", "MultiTenantAlertmanager")
+	mode := featurecontrol.FeatureClassicMode
+	if t.Cfg.Alertmanager.UTF8StrictMode {
+		level.Debug(logger).Log("Starting Alertmanager in UTF-8 strict mode")
+		mode = featurecontrol.FeatureUTF8StrictMode
+	} else {
+		level.Debug(logger).Log("Starting Alertmanager in classic mode")
+	}
+	ff, err := featurecontrol.NewFlags(util_log.Logger, mode)
+	util_log.CheckFatal("initializing Alertmanager feature flags", err)
+	compat.InitFromFlags(util_log.Logger, compat.RegisteredMetrics, ff)
+
 	t.Cfg.Alertmanager.ShardingRing.Common.ListenPort = t.Cfg.Server.GRPCListenPort
 	t.Cfg.Alertmanager.CheckExternalURL(t.Cfg.API.AlertmanagerHTTPPrefix, util_log.Logger)
 
@@ -886,7 +901,7 @@ func (t *Mimir) initAlertManager() (serv services.Service, err error) {
 		return
 	}
 
-	t.Alertmanager, err = alertmanager.NewMultitenantAlertmanager(&t.Cfg.Alertmanager, store, t.Overrides, util_log.Logger, t.Registerer)
+	t.Alertmanager, err = alertmanager.NewMultitenantAlertmanager(&t.Cfg.Alertmanager, store, t.Overrides, ff, util_log.Logger, t.Registerer)
 	if err != nil {
 		return
 	}

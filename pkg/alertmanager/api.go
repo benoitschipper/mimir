@@ -8,6 +8,7 @@ package alertmanager
 import (
 	"context"
 	"fmt"
+	"github.com/prometheus/alertmanager/matchers/compat"
 	"io"
 	"net/http"
 	"os"
@@ -269,6 +270,10 @@ func validateUserConfig(logger log.Logger, cfg alertspb.AlertConfigDesc, limits 
 	// that function shouldn't break configuration. Only way it can fail is if the base
 	// autoWebhookURL itself is broken. In that case, I would argue, we should accept the config
 	// not reject it.
+
+	if err := validateMatchersInConfig(logger, compat.RegisteredMetrics, "api", cfg); err != nil {
+		return err
+	}
 
 	return nil
 }

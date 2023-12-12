@@ -9,6 +9,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/prometheus/alertmanager/matchers/compat"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -31,6 +32,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/alertmanager/cluster/clusterpb"
 	amconfig "github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"golang.org/x/time/rate"
@@ -89,6 +91,11 @@ type MultitenantAlertmanagerConfig struct {
 
 	// Allow disabling of full_state object cleanup.
 	EnableStateCleanup bool `yaml:"enable_state_cleanup" category:"advanced"`
+
+	// Enable UTF-8 strict mode. This means Alertmanager uses the matchers/parse parser
+	// to parse configurations and API requests, instead of pkg/labels. Use this mode
+	// once you are confident that your configuration is forwards compatible.
+	UTF8StrictMode bool `yaml:"utf8_mode"`
 }
 
 const (
@@ -117,6 +124,8 @@ func (cfg *MultitenantAlertmanagerConfig) RegisterFlags(f *flag.FlagSet, logger 
 	cfg.ShardingRing.RegisterFlags(f, logger)
 
 	f.DurationVar(&cfg.PeerTimeout, "alertmanager.peer-timeout", defaultPeerTimeout, "Time to wait between peers to send notifications.")
+
+	f.BoolVar(&cfg.UTF8StrictMode, "alertmanager.utf8-strict-mode", false, "Enable UTF-8 strict mode.")
 }
 
 // Validate config and returns error on failure
@@ -271,7 +280,8 @@ type MultitenantAlertmanager struct {
 
 	alertmanagerClientsPool ClientsPool
 
-	limits Limits
+	limits       Limits
+	featureFlags featurecontrol.Flagger
 
 	registry          prometheus.Registerer
 	ringCheckErrors   prometheus.Counter
@@ -282,7 +292,7 @@ type MultitenantAlertmanager struct {
 }
 
 // NewMultitenantAlertmanager creates a new MultitenantAlertmanager.
-func NewMultitenantAlertmanager(cfg *MultitenantAlertmanagerConfig, store alertstore.AlertStore, limits Limits, logger log.Logger, registerer prometheus.Registerer) (*MultitenantAlertmanager, error) {
+func NewMultitenantAlertmanager(cfg *MultitenantAlertmanagerConfig, store alertstore.AlertStore, limits Limits, featureFlags featurecontrol.Flagger, logger log.Logger, registerer prometheus.Registerer) (*MultitenantAlertmanager, error) {
 	err := os.MkdirAll(cfg.DataDir, 0777)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create Alertmanager data directory %q: %s", cfg.DataDir, err)
@@ -303,7 +313,7 @@ func NewMultitenantAlertmanager(cfg *MultitenantAlertmanagerConfig, store alerts
 		return nil, errors.Wrap(err, "create KV store client")
 	}
 
-	return createMultitenantAlertmanager(cfg, fallbackConfig, store, ringStore, limits, logger, registerer)
+	return createMultitenantAlertmanager(cfg, fallbackConfig, store, ringStore, limits, featureFlags, logger, registerer)
 }
 
 // ComputeFallbackConfig will load, vaildate and return the provided fallbackConfigFile
@@ -339,7 +349,7 @@ func ComputeFallbackConfig(fallbackConfigFile string) ([]byte, error) {
 	return fallbackConfig, nil
 }
 
-func createMultitenantAlertmanager(cfg *MultitenantAlertmanagerConfig, fallbackConfig []byte, store alertstore.AlertStore, ringStore kv.Client, limits Limits, logger log.Logger, registerer prometheus.Registerer) (*MultitenantAlertmanager, error) {
+func createMultitenantAlertmanager(cfg *MultitenantAlertmanagerConfig, fallbackConfig []byte, store alertstore.AlertStore, ringStore kv.Client, limits Limits, featureFlags featurecontrol.Flagger, logger log.Logger, registerer prometheus.Registerer) (*MultitenantAlertmanager, error) {
 	am := &MultitenantAlertmanager{
 		cfg:                 cfg,
 		fallbackConfig:      string(fallbackConfig),
@@ -351,6 +361,7 @@ func createMultitenantAlertmanager(cfg *MultitenantAlertmanagerConfig, fallbackC
 		logger:              log.With(logger, "component", "MultiTenantAlertmanager"),
 		registry:            registerer,
 		limits:              limits,
+		featureFlags:        featureFlags,
 		ringCheckErrors: promauto.With(registerer).NewCounter(prometheus.CounterOpts{
 			Name: "cortex_alertmanager_ring_check_errors_total",
 			Help: "Number of errors that have occurred when checking the ring for ownership.",
@@ -727,6 +738,9 @@ func (am *MultitenantAlertmanager) setConfig(cfg alertspb.AlertConfigDesc) error
 			// working configuration.
 			return fmt.Errorf("invalid Alertmanager configuration for %v: %v", cfg.User, err)
 		}
+		if err := validateMatchersInConfig(am.logger, compat.RegisteredMetrics, "config", cfg); err != nil {
+			return err
+		}
 	}
 
 	// We can have an empty configuration here if:
@@ -784,6 +798,7 @@ func (am *MultitenantAlertmanager) newAlertmanager(userID string, amConfig *amco
 		Store:                             am.store,
 		PersisterConfig:                   am.cfg.Persister,
 		Limits:                            am.limits,
+		FeatureFlags:                      am.featureFlags,
 	}, reg)
 	if err != nil {
 		return nil, fmt.Errorf("unable to start Alertmanager for user %v: %v", userID, err)
