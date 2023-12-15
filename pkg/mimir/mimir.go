@@ -136,6 +136,8 @@ type Config struct {
 	UsageStats          usagestats.Config                          `yaml:"usage_stats"`
 	OverridesExporter   exporter.Config                            `yaml:"overrides_exporter"`
 
+	PartitionsRingWatcherConfig ring.PartitionRingWatcherConfig `yaml:"partitions_ring"`
+
 	Common CommonConfig `yaml:"common"`
 
 	TimeseriesUnmarshalCachingOptimizationEnabled bool `yaml:"timeseries_unmarshal_caching_optimization_enabled" category:"experimental"`
@@ -685,6 +687,7 @@ type Mimir struct {
 	API                      *api.API
 	Server                   *server.Server
 	IngesterRing             *ring.Ring
+	PartitionsRing           *ring.PartitionRingWatcher
 	TenantLimits             validation.TenantLimits
 	Overrides                *validation.Overrides
 	ActiveGroupsCleanup      *util.ActiveGroupsCleanupService
