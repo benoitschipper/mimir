@@ -47,14 +47,6 @@ func (cfg *RingConfig) RegisterFlags(f *flag.FlagSet, logger log.Logger) {
 	const componentPlural = "compactors"
 	cfg.Common.RegisterFlags(flagNamePrefix, kvStorePrefix, componentPlural, f, logger)
 
-	const heartbeatTimeoutDefault = 4 * time.Minute
-	_ = f.Lookup(flagNamePrefix + "heartbeat-timeout").Value.Set(heartbeatTimeoutDefault.String())
-	f.Lookup(flagNamePrefix + "heartbeat-timeout").DefValue = heartbeatTimeoutDefault.String()
-
-	const heartbeatPeriodDefault = time.Minute
-	_ = f.Lookup(flagNamePrefix + "heartbeat-period").Value.Set(heartbeatPeriodDefault.String())
-	f.Lookup(flagNamePrefix + "heartbeat-period").DefValue = heartbeatPeriodDefault.String()
-
 	// Wait stability flags.
 	f.DurationVar(&cfg.WaitStabilityMinDuration, flagNamePrefix+"wait-stability-min-duration", 0, "Minimum time to wait for ring stability at startup. 0 to disable.")
 	f.DurationVar(&cfg.WaitStabilityMaxDuration, flagNamePrefix+"wait-stability-max-duration", 5*time.Minute, "Maximum time to wait for ring stability at startup. If the compactor ring keeps changing after this period of time, the compactor will start anyway.")

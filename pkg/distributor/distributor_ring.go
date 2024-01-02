@@ -9,7 +9,6 @@ import (
 	"flag"
 	"net"
 	"strconv"
-	"time"
 
 	"github.com/go-kit/log"
 	"github.com/grafana/dskit/ring"
@@ -35,14 +34,6 @@ type RingConfig struct {
 func (cfg *RingConfig) RegisterFlags(f *flag.FlagSet, logger log.Logger) {
 	const flagNamePrefix = "distributor.ring."
 	cfg.Common.RegisterFlags(flagNamePrefix, "collectors/", "distributors", f, logger)
-
-	const heartbeatTimeoutDefault = 4 * time.Minute
-	_ = f.Lookup(flagNamePrefix + "heartbeat-timeout").Value.Set(heartbeatTimeoutDefault.String())
-	f.Lookup(flagNamePrefix + "heartbeat-timeout").DefValue = heartbeatTimeoutDefault.String()
-
-	const heartbeatPeriodDefault = time.Minute
-	_ = f.Lookup(flagNamePrefix + "heartbeat-period").Value.Set(heartbeatPeriodDefault.String())
-	f.Lookup(flagNamePrefix + "heartbeat-period").DefValue = heartbeatPeriodDefault.String()
 }
 
 func (cfg *RingConfig) ToBasicLifecyclerConfig(logger log.Logger) (ring.BasicLifecyclerConfig, error) {

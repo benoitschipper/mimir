@@ -40,6 +40,8 @@
       'compactor.ring.consul.hostname': 'consul.%(namespace)s.svc.%(cluster_domain)s:8500' % $._config,
       'compactor.ring.prefix': '',
       'compactor.ring.wait-stability-min-duration': '1m',  // Wait until ring is stable before switching to ACTIVE.
+      'compactor.ring.heartbeat-period': '1m',
+      'compactor.ring.heartbeat-timeout': '4m',
 
       // The compactor wait period is the amount of time that compactors will wait before compacting
       // 1st level blocks (uploaded by ingesters) since the last block was uploaded. In the worst

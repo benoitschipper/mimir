@@ -47,6 +47,7 @@ func TestGettingStartedWithGossipedRing(t *testing.T) {
 		"-blocks-storage.s3.secret-access-key":              e2edb.MinioSecretKey,
 		"-blocks-storage.s3.endpoint":                       fmt.Sprintf("%s-minio-9000:9000", networkName),
 		"-blocks-storage.s3.insecure":                       "true",
+		"-log.level":                                        "debug",
 	}
 
 	// This mimir will fail to join the cluster configured in yaml file. That's fine.

@@ -865,12 +865,12 @@ ring:
 
   # (advanced) Period at which to heartbeat to the ring. 0 = disabled.
   # CLI flag: -distributor.ring.heartbeat-period
-  [heartbeat_period: <duration> | default = 1m]
+  [heartbeat_period: <duration> | default = 15s]
 
   # (advanced) The heartbeat timeout after which distributors are considered
   # unhealthy within the ring. 0 = never (timeout disabled).
   # CLI flag: -distributor.ring.heartbeat-timeout
-  [heartbeat_timeout: <duration> | default = 4m]
+  [heartbeat_timeout: <duration> | default = 1m]
 
   # (advanced) Instance ID to register in the ring.
   # CLI flag: -distributor.ring.instance-id
@@ -4047,12 +4047,12 @@ sharding_ring:
 
   # (advanced) Period at which to heartbeat to the ring. 0 = disabled.
   # CLI flag: -compactor.ring.heartbeat-period
-  [heartbeat_period: <duration> | default = 1m]
+  [heartbeat_period: <duration> | default = 15s]
 
   # (advanced) The heartbeat timeout after which compactors are considered
   # unhealthy within the ring. 0 = never (timeout disabled).
   # CLI flag: -compactor.ring.heartbeat-timeout
-  [heartbeat_timeout: <duration> | default = 4m]
+  [heartbeat_timeout: <duration> | default = 1m]
 
   # (advanced) Instance ID to register in the ring.
   # CLI flag: -compactor.ring.instance-id
