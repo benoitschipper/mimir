@@ -935,6 +935,8 @@ spec:
         - -distributor.ingestion-burst-size=200000
         - -distributor.ingestion-rate-limit=10000
         - -distributor.ring.consul.hostname=consul.default.svc.cluster.local.:8500
+        - -distributor.ring.heartbeat-period=1m
+        - -distributor.ring.heartbeat-timeout=4m
         - -distributor.ring.multi.primary=consul
         - -distributor.ring.multi.secondary=memberlist
         - -distributor.ring.prefix=
@@ -1468,6 +1470,8 @@ spec:
         - -compactor.max-closing-blocks-concurrency=2
         - -compactor.max-opening-blocks-concurrency=4
         - -compactor.ring.consul.hostname=consul.default.svc.cluster.local.:8500
+        - -compactor.ring.heartbeat-period=1m
+        - -compactor.ring.heartbeat-timeout=4m
         - -compactor.ring.multi.primary=consul
         - -compactor.ring.multi.secondary=memberlist
         - -compactor.ring.prefix=
