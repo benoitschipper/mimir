@@ -95,7 +95,7 @@ type MultitenantAlertmanagerConfig struct {
 	// Enable UTF-8 strict mode. This means Alertmanager uses the matchers/parse parser
 	// to parse configurations and API requests, instead of pkg/labels. Use this mode
 	// once you are confident that your configuration is forwards compatible.
-	UTF8StrictMode bool `yaml:"utf8_mode"`
+	UTF8StrictMode bool `yaml:"utf8_strict_mode"`
 }
 
 const (
