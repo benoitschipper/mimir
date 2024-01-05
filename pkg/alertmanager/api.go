@@ -8,7 +8,6 @@ package alertmanager
 import (
 	"context"
 	"fmt"
-	"github.com/prometheus/alertmanager/matchers/compat"
 	"io"
 	"net/http"
 	"os"
@@ -21,6 +20,7 @@ import (
 	"github.com/grafana/dskit/tenant"
 	"github.com/pkg/errors"
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/matchers/compat"
 	"github.com/prometheus/alertmanager/template"
 	commoncfg "github.com/prometheus/common/config"
 	"gopkg.in/yaml.v3"
