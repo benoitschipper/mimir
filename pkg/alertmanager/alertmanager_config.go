@@ -40,7 +40,7 @@ type basicInhibitRule struct {
 // each incompatible input encountered.
 func validateMatchersInConfig(logger log.Logger, metrics *compat.Metrics, origin string, cfg alertspb.AlertConfigDesc) error {
 	var (
-		parseFn  compat.MatchersParser
+		parseFn  compat.ParseMatchers
 		basicCfg basicConfig
 		err      error
 	)
@@ -58,7 +58,7 @@ func validateMatchersInConfig(logger log.Logger, metrics *compat.Metrics, origin
 	return nil
 }
 
-func validateRoute(logger log.Logger, parseFn compat.MatchersParser, origin string, r *basicRoute, user string) error {
+func validateRoute(logger log.Logger, parseFn compat.ParseMatchers, origin string, r *basicRoute, user string) error {
 	if r == nil {
 		return nil
 	}
@@ -73,7 +73,7 @@ func validateRoute(logger log.Logger, parseFn compat.MatchersParser, origin stri
 	return nil
 }
 
-func validateInhibitionRules(_ log.Logger, parseFn compat.MatchersParser, origin string, rules []*basicInhibitRule, _ string) error {
+func validateInhibitionRules(_ log.Logger, parseFn compat.ParseMatchers, origin string, rules []*basicInhibitRule, _ string) error {
 	for _, r := range rules {
 		for _, m := range r.SourceMatchers {
 			parseFn(m, origin)
