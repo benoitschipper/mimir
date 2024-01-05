@@ -884,10 +884,10 @@ func (t *Mimir) initAlertManager() (serv services.Service, err error) {
 	logger := log.With(util_log.Logger, "component", "MultiTenantAlertmanager")
 	mode := featurecontrol.FeatureClassicMode
 	if t.Cfg.Alertmanager.UTF8StrictMode {
-		level.Debug(logger).Log("Starting Alertmanager in UTF-8 strict mode")
+		level.Debug(logger).Log("msg", "Starting Alertmanager in UTF-8 strict mode")
 		mode = featurecontrol.FeatureUTF8StrictMode
 	} else {
-		level.Debug(logger).Log("Starting Alertmanager in classic mode")
+		level.Debug(logger).Log("msg", "Starting Alertmanager in classic mode")
 	}
 	ff, err := featurecontrol.NewFlags(util_log.Logger, mode)
 	util_log.CheckFatal("initializing Alertmanager feature flags", err)
