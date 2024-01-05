@@ -63,7 +63,7 @@ func validateRoute(logger log.Logger, parseFn compat.ParseMatchers, origin strin
 		return nil
 	}
 	for _, m := range r.Matchers {
-		parseFn(m, origin)
+		parseFn(m, origin) //nolint:errcheck
 	}
 	for _, route := range r.Routes {
 		if err := validateRoute(logger, parseFn, origin, route, user); err != nil {
@@ -76,10 +76,10 @@ func validateRoute(logger log.Logger, parseFn compat.ParseMatchers, origin strin
 func validateInhibitionRules(_ log.Logger, parseFn compat.ParseMatchers, origin string, rules []*basicInhibitRule, _ string) error {
 	for _, r := range rules {
 		for _, m := range r.SourceMatchers {
-			parseFn(m, origin)
+			parseFn(m, origin) //nolint:errcheck
 		}
 		for _, m := range r.TargetMatchers {
-			parseFn(m, origin)
+			parseFn(m, origin) //nolint:errcheck
 		}
 	}
 	return nil
