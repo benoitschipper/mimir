@@ -265,9 +265,10 @@ func New(cfg *Config, reg *prometheus.Registry) (*Alertmanager, error) {
 		StatusFunc:  am.marker.Status,
 		Concurrency: cfg.MaxConcurrentGetRequestsPerTenant,
 		// Mimir should not expose cluster information back to its tenants.
-		Peer:     &NilPeer{},
-		Registry: am.registry,
-		Logger:   log.With(am.logger, "component", "api"),
+		Peer:         &NilPeer{},
+		Registry:     am.registry,
+		Logger:       log.With(am.logger, "component", "api"),
+		FeatureFlags: cfg.FeatureFlags,
 		GroupFunc: func(f1 func(*dispatch.Route) bool, f2 func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string) {
 			return am.dispatcher.Groups(f1, f2)
 		},
