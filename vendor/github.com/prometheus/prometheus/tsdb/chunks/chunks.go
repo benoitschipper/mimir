@@ -671,7 +671,7 @@ func (s *Reader) Size() int64 {
 	return s.size
 }
 
-// ChunkOrIterable returns a chunk from a given reference.
+// Chunk returns a chunk from a given reference.
 func (s *Reader) ChunkOrIterable(meta Meta) (chunkenc.Chunk, chunkenc.Iterable, error) {
 	sgmIndex, chkStart := BlockChunkRef(meta.Ref).Unpack()
 

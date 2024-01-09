@@ -111,10 +111,6 @@ func (e *CorruptionErr) Error() string {
 	return fmt.Errorf("corruption in head chunk file %s: %w", segmentFile(e.Dir, e.FileIndex), e.Err).Error()
 }
 
-func (e *CorruptionErr) Unwrap() error {
-	return e.Err
-}
-
 // chunkPos keeps track of the position in the head chunk files.
 // chunkPos is not thread-safe, a lock must be used to protect it.
 type chunkPos struct {
@@ -404,7 +400,7 @@ func repairLastChunkFile(files map[int]string) (_ map[int]string, returnErr erro
 
 	buf := make([]byte, MagicChunksSize)
 	size, err := f.Read(buf)
-	if err != nil && !errors.Is(err, io.EOF) {
+	if err != nil && err != io.EOF {
 		return files, fmt.Errorf("failed to read magic number during last head chunk file repair: %w", err)
 	}
 	if err := f.Close(); err != nil {
@@ -897,8 +893,7 @@ func (cdm *ChunkDiskMapper) IterateAllChunks(f func(seriesRef HeadSeriesRef, chu
 			// Extract the encoding from the byte. ChunkDiskMapper uses only the last 7 bits for the encoding.
 			chkEnc = cdm.RemoveMasks(chkEnc)
 			if err := f(seriesRef, chunkRef, mint, maxt, numSamples, chkEnc, isOOO); err != nil {
-				var cerr *CorruptionErr
-				if errors.As(err, &cerr) {
+				if cerr, ok := err.(*CorruptionErr); ok {
 					cerr.Dir = cdm.dir.Name()
 					cerr.FileIndex = segID
 					return cerr

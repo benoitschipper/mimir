@@ -15,12 +15,11 @@ package tsdb
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"math"
 	"sync"
 
 	"github.com/go-kit/log/level"
+	"github.com/pkg/errors"
 	"golang.org/x/exp/slices"
 
 	"github.com/prometheus/prometheus/model/labels"
@@ -138,7 +137,7 @@ func (h *headIndexReader) SortedPostings(p index.Postings) index.Postings {
 		}
 	}
 	if err := p.Err(); err != nil {
-		return index.ErrPostings(fmt.Errorf("expand postings: %w", err))
+		return index.ErrPostings(errors.Wrap(err, "expand postings"))
 	}
 
 	slices.SortFunc(series, func(a, b *memSeries) int {
@@ -418,8 +417,7 @@ func (s *memSeries) chunk(id chunks.HeadChunkID, cdm chunkDiskMapper, memChunkPo
 	if ix < len(s.mmappedChunks) {
 		chk, err := cdm.Chunk(s.mmappedChunks[ix].ref)
 		if err != nil {
-			var cerr *chunks.CorruptionErr
-			if errors.As(err, &cerr) {
+			if _, ok := err.(*chunks.CorruptionErr); ok {
 				panic(err)
 			}
 			return nil, false, false, err
@@ -535,27 +533,20 @@ func (s *memSeries) oooMergedChunks(meta chunks.Meta, cdm chunkDiskMapper, mint,
 		}
 		var iterable chunkenc.Iterable
 		if c.meta.Ref == oooHeadRef {
-			var xor *chunkenc.XORChunk
-			var err error
-			// If head chunk min and max time match the meta OOO markers
-			// that means that the chunk has not expanded so we can append
-			// it as it is.
-			if s.ooo.oooHeadChunk.minTime == meta.OOOLastMinTime && s.ooo.oooHeadChunk.maxTime == meta.OOOLastMaxTime {
-				xor, err = s.ooo.oooHeadChunk.chunk.ToXOR() // TODO(jesus.vazquez) (This is an optimization idea that has no priority and might not be that useful) See if we could use a copy of the underlying slice. That would leave the more expensive ToXOR() function only for the usecase where Bytes() is called.
-			} else {
-				// We need to remove samples that are outside of the markers
-				xor, err = s.ooo.oooHeadChunk.chunk.ToXORBetweenTimestamps(meta.OOOLastMinTime, meta.OOOLastMaxTime)
-			}
+			chks, err := s.ooo.oooHeadChunk.chunk.ToEncodedChunks(meta.OOOLastMinTime, meta.OOOLastMaxTime)
 			if err != nil {
-				return nil, fmt.Errorf("failed to convert ooo head chunk to xor chunk: %w", err)
+				return nil, errors.Wrap(err, "failed to convert ooo head chunk to encoded chunk(s)")
 			}
-			iterable = xor
+			// If the head results in multiple chunks, the chunks will share the same reference as the head chunk,
+			// which is technically true, but if some code does not check against the head, could lead to unexpected results.
+			for _, chk := range chks {
+				mc.chunkIterables = append(mc.chunkIterables, chk.chunk)
+			}
 		} else {
 			chk, err := cdm.Chunk(c.ref)
 			if err != nil {
-				var cerr *chunks.CorruptionErr
-				if errors.As(err, &cerr) {
-					return nil, fmt.Errorf("invalid ooo mmapped chunk: %w", err)
+				if _, ok := err.(*chunks.CorruptionErr); ok {
+					return nil, errors.Wrap(err, "invalid ooo mmapped chunk")
 				}
 				return nil, err
 			}
@@ -569,8 +560,8 @@ func (s *memSeries) oooMergedChunks(meta chunks.Meta, cdm chunkDiskMapper, mint,
 			} else {
 				iterable = chk
 			}
+			mc.chunkIterables = append(mc.chunkIterables, iterable)
 		}
-		mc.chunkIterables = append(mc.chunkIterables, iterable)
 		if c.meta.MaxTime > absoluteMax {
 			absoluteMax = c.meta.MaxTime
 		}
@@ -624,15 +615,15 @@ type boundedIterator struct {
 // If there are samples within bounds it will advance one by one amongst them.
 // If there are no samples within bounds it will return false.
 func (b boundedIterator) Next() chunkenc.ValueType {
-	for b.Iterator.Next() == chunkenc.ValFloat {
-		t, _ := b.Iterator.At()
+	for typ := b.Iterator.Next(); typ != chunkenc.ValNone; typ = b.Iterator.Next() {
+		t := b.Iterator.AtT()
 		switch {
 		case t < b.minT:
 			continue
 		case t > b.maxT:
 			return chunkenc.ValNone
 		default:
-			return chunkenc.ValFloat
+			return typ
 		}
 	}
 	return chunkenc.ValNone
@@ -641,13 +632,13 @@ func (b boundedIterator) Next() chunkenc.ValueType {
 func (b boundedIterator) Seek(t int64) chunkenc.ValueType {
 	if t < b.minT {
 		// We must seek at least up to b.minT if it is asked for something before that.
-		val := b.Iterator.Seek(b.minT)
-		if !(val == chunkenc.ValFloat) {
+		valType := b.Iterator.Seek(b.minT)
+		if valType == chunkenc.ValNone {
 			return chunkenc.ValNone
 		}
-		t, _ := b.Iterator.At()
+		t := b.Iterator.AtT()
 		if t <= b.maxT {
-			return chunkenc.ValFloat
+			return valType
 		}
 	}
 	if t > b.maxT {
@@ -771,4 +762,46 @@ func makeStopIterator(c chunkenc.Chunk, it chunkenc.Iterator, stopAfter int) chu
 		i:         -1,
 		stopAfter: stopAfter,
 	}
+}
+
+func GetBytes(encoding chunkenc.Encoding, it chunkenc.Iterator) []byte {
+	var xc chunkenc.Chunk
+
+	switch encoding {
+	case chunkenc.EncXOR:
+		xc = chunkenc.NewXORChunk()
+	case chunkenc.EncHistogram:
+		xc = chunkenc.NewHistogramChunk()
+	case chunkenc.EncFloatHistogram:
+		xc = chunkenc.NewFloatHistogramChunk()
+	}
+	app, err := xc.Appender()
+	if err != nil {
+		panic(err)
+	}
+
+	for typ := it.Next(); typ != chunkenc.ValNone; typ = it.Next() {
+		switch typ {
+		case chunkenc.ValFloat:
+			t, v := it.At()
+			app.Append(t, v)
+		case chunkenc.ValHistogram:
+			prevHApp, _ := app.(*chunkenc.HistogramAppender)
+			t, v := it.AtHistogram()
+			// TODO(carrieedwards): check if logic for new chunk allocation is needed (see ToEncodedChunks method)
+			_, _, _, err := app.AppendHistogram(prevHApp, t, v, false)
+			if err != nil {
+				panic(err)
+			}
+		case chunkenc.ValFloatHistogram:
+			prevHApp, _ := app.(*chunkenc.FloatHistogramAppender)
+			t, v := it.AtFloatHistogram()
+			// TODO(carrieedwards): check if logic for new chunk allocation is needed (see ToEncodedChunks method)
+			_, _, _, err := app.AppendFloatHistogram(prevHApp, t, v, false)
+			if err != nil {
+				panic(err)
+			}
+		}
+	}
+	return xc.Bytes()
 }

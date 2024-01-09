@@ -16,7 +16,6 @@ package tsdb
 import (
 	"bufio"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"hash"
 	"hash/crc32"
@@ -29,6 +28,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/prometheus/prometheus/storage"
@@ -210,7 +210,7 @@ func OpenSegmentWAL(dir string, logger log.Logger, flushInterval time.Duration, 
 
 		for _, fn := range fns[i:] {
 			if err := os.Remove(fn); err != nil {
-				return w, fmt.Errorf("removing segment failed: %w", err)
+				return w, errors.Wrap(err, "removing segment failed")
 			}
 		}
 		break
@@ -237,8 +237,8 @@ func (r *repairingWALReader) Read(
 	if err == nil {
 		return nil
 	}
-	var cerr *walCorruptionErr
-	if !errors.As(err, &cerr) {
+	cerr, ok := errors.Cause(err).(walCorruptionErr)
+	if !ok {
 		return err
 	}
 	r.wal.metrics.corruptions.Inc()
@@ -309,7 +309,7 @@ func (w *SegmentWAL) Truncate(mint int64, keep func(chunks.HeadSeriesRef) bool) 
 		// Past WAL files are closed. We have to reopen them for another read.
 		f, err := w.openSegmentFile(sf.Name())
 		if err != nil {
-			return fmt.Errorf("open old WAL segment for read: %w", err)
+			return errors.Wrap(err, "open old WAL segment for read")
 		}
 		candidates = append(candidates, &segmentFile{
 			File:      f,
@@ -326,7 +326,7 @@ func (w *SegmentWAL) Truncate(mint int64, keep func(chunks.HeadSeriesRef) bool) 
 	// Create a new tmp file.
 	f, err := w.createSegmentFile(filepath.Join(w.dirFile.Name(), "compact.tmp"))
 	if err != nil {
-		return fmt.Errorf("create compaction segment: %w", err)
+		return errors.Wrap(err, "create compaction segment")
 	}
 	defer func() {
 		if err := os.RemoveAll(f.Name()); err != nil {
@@ -352,7 +352,7 @@ func (w *SegmentWAL) Truncate(mint int64, keep func(chunks.HeadSeriesRef) bool) 
 
 		err := r.decodeSeries(flag, byt, &decSeries)
 		if err != nil {
-			return fmt.Errorf("decode samples while truncating: %w", err)
+			return errors.Wrap(err, "decode samples while truncating")
 		}
 		for _, s := range decSeries {
 			if keep(s.Ref) {
@@ -367,11 +367,11 @@ func (w *SegmentWAL) Truncate(mint int64, keep func(chunks.HeadSeriesRef) bool) 
 		w.putBuffer(buf)
 
 		if err != nil {
-			return fmt.Errorf("write to compaction segment: %w", err)
+			return errors.Wrap(err, "write to compaction segment")
 		}
 	}
-	if err := r.Err(); err != nil {
-		return fmt.Errorf("read candidate WAL files: %w", err)
+	if r.Err() != nil {
+		return errors.Wrap(r.Err(), "read candidate WAL files")
 	}
 
 	off, err := csf.Seek(0, io.SeekCurrent)
@@ -390,12 +390,12 @@ func (w *SegmentWAL) Truncate(mint int64, keep func(chunks.HeadSeriesRef) bool) 
 
 	_ = candidates[0].Close() // need close before remove on platform windows
 	if err := fileutil.Replace(csf.Name(), candidates[0].Name()); err != nil {
-		return fmt.Errorf("rename compaction segment: %w", err)
+		return errors.Wrap(err, "rename compaction segment")
 	}
 	for _, f := range candidates[1:] {
 		f.Close() // need close before remove on platform windows
 		if err := os.RemoveAll(f.Name()); err != nil {
-			return fmt.Errorf("delete WAL segment file: %w", err)
+			return errors.Wrap(err, "delete WAL segment file")
 		}
 	}
 	if err := w.dirFile.Sync(); err != nil {
@@ -435,7 +435,7 @@ func (w *SegmentWAL) LogSeries(series []record.RefSeries) error {
 	w.putBuffer(buf)
 
 	if err != nil {
-		return fmt.Errorf("log series: %w", err)
+		return errors.Wrap(err, "log series")
 	}
 
 	tf := w.head()
@@ -462,7 +462,7 @@ func (w *SegmentWAL) LogSamples(samples []record.RefSample) error {
 	w.putBuffer(buf)
 
 	if err != nil {
-		return fmt.Errorf("log series: %w", err)
+		return errors.Wrap(err, "log series")
 	}
 	tf := w.head()
 
@@ -488,7 +488,7 @@ func (w *SegmentWAL) LogDeletes(stones []tombstones.Stone) error {
 	w.putBuffer(buf)
 
 	if err != nil {
-		return fmt.Errorf("log series: %w", err)
+		return errors.Wrap(err, "log series")
 	}
 	tf := w.head()
 
@@ -523,7 +523,7 @@ func (w *SegmentWAL) openSegmentFile(name string) (*os.File, error) {
 
 	switch n, err := f.Read(metab); {
 	case err != nil:
-		return nil, fmt.Errorf("validate meta %q: %w", f.Name(), err)
+		return nil, errors.Wrapf(err, "validate meta %q", f.Name())
 	case n != 8:
 		return nil, fmt.Errorf("invalid header size %d in %q", n, f.Name())
 	}
@@ -573,16 +573,16 @@ func (w *SegmentWAL) cut() error {
 			w.actorc <- func() error {
 				off, err := hf.Seek(0, io.SeekCurrent)
 				if err != nil {
-					return fmt.Errorf("finish old segment %s: %w", hf.Name(), err)
+					return errors.Wrapf(err, "finish old segment %s", hf.Name())
 				}
 				if err := hf.Truncate(off); err != nil {
-					return fmt.Errorf("finish old segment %s: %w", hf.Name(), err)
+					return errors.Wrapf(err, "finish old segment %s", hf.Name())
 				}
 				if err := hf.Sync(); err != nil {
-					return fmt.Errorf("finish old segment %s: %w", hf.Name(), err)
+					return errors.Wrapf(err, "finish old segment %s", hf.Name())
 				}
 				if err := hf.Close(); err != nil {
-					return fmt.Errorf("finish old segment %s: %w", hf.Name(), err)
+					return errors.Wrapf(err, "finish old segment %s", hf.Name())
 				}
 				return nil
 			}
@@ -600,10 +600,7 @@ func (w *SegmentWAL) cut() error {
 
 	go func() {
 		w.actorc <- func() error {
-			if err := w.dirFile.Sync(); err != nil {
-				return fmt.Errorf("sync WAL directory: %w", err)
-			}
-			return nil
+			return errors.Wrap(w.dirFile.Sync(), "sync WAL directory")
 		}
 	}()
 
@@ -638,7 +635,7 @@ func (w *SegmentWAL) Sync() error {
 		head = w.head()
 	}()
 	if err != nil {
-		return fmt.Errorf("flush buffer: %w", err)
+		return errors.Wrap(err, "flush buffer")
 	}
 	if head != nil {
 		// But only fsync the head segment after releasing the mutex as it will block on disk I/O.
@@ -729,13 +726,11 @@ func (w *SegmentWAL) Close() error {
 	// only the current segment will still be open.
 	if hf := w.head(); hf != nil {
 		if err := hf.Close(); err != nil {
-			return fmt.Errorf("closing WAL head %s: %w", hf.Name(), err)
+			return errors.Wrapf(err, "closing WAL head %s", hf.Name())
 		}
 	}
-	if err := w.dirFile.Close(); err != nil {
-		return fmt.Errorf("closing WAL dir %s: %w", w.dirFile.Name(), err)
-	}
-	return nil
+
+	return errors.Wrapf(w.dirFile.Close(), "closing WAL dir %s", w.dirFile.Name())
 }
 
 func (w *SegmentWAL) write(t WALEntryType, flag uint8, buf []byte) error {
@@ -926,7 +921,7 @@ func (r *walReader) Read(
 
 			err = r.decodeSeries(flag, b, &series)
 			if err != nil {
-				err = fmt.Errorf("decode series entry: %w", err)
+				err = errors.Wrap(err, "decode series entry")
 				break
 			}
 			datac <- series
@@ -945,7 +940,7 @@ func (r *walReader) Read(
 
 			err = r.decodeSamples(flag, b, &samples)
 			if err != nil {
-				err = fmt.Errorf("decode samples entry: %w", err)
+				err = errors.Wrap(err, "decode samples entry")
 				break
 			}
 			datac <- samples
@@ -965,7 +960,7 @@ func (r *walReader) Read(
 
 			err = r.decodeDeletes(flag, b, &deletes)
 			if err != nil {
-				err = fmt.Errorf("decode delete entry: %w", err)
+				err = errors.Wrap(err, "decode delete entry")
 				break
 			}
 			datac <- deletes
@@ -987,8 +982,8 @@ func (r *walReader) Read(
 	if err != nil {
 		return err
 	}
-	if err := r.Err(); err != nil {
-		return fmt.Errorf("read entry: %w", err)
+	if r.Err() != nil {
+		return errors.Wrap(r.Err(), "read entry")
 	}
 	return nil
 }
@@ -1051,16 +1046,12 @@ type walCorruptionErr struct {
 	lastOffset int64
 }
 
-func (e *walCorruptionErr) Error() string {
+func (e walCorruptionErr) Error() string {
 	return fmt.Sprintf("%s <file: %d, lastOffset: %d>", e.err, e.file, e.lastOffset)
 }
 
-func (e *walCorruptionErr) Unwrap() error {
-	return e.err
-}
-
 func (r *walReader) corruptionErr(s string, args ...interface{}) error {
-	return &walCorruptionErr{
+	return walCorruptionErr{
 		err:        fmt.Errorf(s, args...),
 		file:       r.cur,
 		lastOffset: r.lastOffset,
@@ -1161,8 +1152,8 @@ func (r *walReader) decodeSamples(flag byte, b []byte, res *[]record.RefSample) 
 		})
 	}
 
-	if err := dec.Err(); err != nil {
-		return fmt.Errorf("decode error after %d samples: %w", len(*res), err)
+	if dec.Err() != nil {
+		return errors.Wrapf(dec.Err(), "decode error after %d samples", len(*res))
 	}
 	if len(dec.B) > 0 {
 		return fmt.Errorf("unexpected %d bytes left in entry", len(dec.B))
@@ -1194,7 +1185,7 @@ func deprecatedWALExists(logger log.Logger, dir string) (bool, error) {
 	// Detect whether we still have the old WAL.
 	fns, err := sequenceFiles(dir)
 	if err != nil && !os.IsNotExist(err) {
-		return false, fmt.Errorf("list sequence files: %w", err)
+		return false, errors.Wrap(err, "list sequence files")
 	}
 	if len(fns) == 0 {
 		return false, nil // No WAL at all yet.
@@ -1203,13 +1194,13 @@ func deprecatedWALExists(logger log.Logger, dir string) (bool, error) {
 	// old WAL.
 	f, err := os.Open(fns[0])
 	if err != nil {
-		return false, fmt.Errorf("check first existing segment: %w", err)
+		return false, errors.Wrap(err, "check first existing segment")
 	}
 	defer f.Close()
 
 	var hdr [4]byte
-	if _, err := f.Read(hdr[:]); err != nil && !errors.Is(err, io.EOF) {
-		return false, fmt.Errorf("read header from first segment: %w", err)
+	if _, err := f.Read(hdr[:]); err != nil && err != io.EOF {
+		return false, errors.Wrap(err, "read header from first segment")
 	}
 	// If we cannot read the magic header for segments of the old WAL, abort.
 	// Either it's migrated already or there's a corruption issue with which
@@ -1232,11 +1223,11 @@ func MigrateWAL(logger log.Logger, dir string) (err error) {
 
 	tmpdir := dir + ".tmp"
 	if err := os.RemoveAll(tmpdir); err != nil {
-		return fmt.Errorf("cleanup replacement dir: %w", err)
+		return errors.Wrap(err, "cleanup replacement dir")
 	}
 	repl, err := wlog.New(logger, nil, tmpdir, wlog.CompressionNone)
 	if err != nil {
-		return fmt.Errorf("open new WAL: %w", err)
+		return errors.Wrap(err, "open new WAL")
 	}
 
 	// It should've already been closed as part of the previous finalization.
@@ -1249,7 +1240,7 @@ func MigrateWAL(logger log.Logger, dir string) (err error) {
 
 	w, err := OpenSegmentWAL(dir, logger, time.Minute, nil)
 	if err != nil {
-		return fmt.Errorf("open old WAL: %w", err)
+		return errors.Wrap(err, "open old WAL")
 	}
 	defer w.Close()
 
@@ -1280,22 +1271,22 @@ func MigrateWAL(logger log.Logger, dir string) (err error) {
 		},
 	)
 	if decErr != nil {
-		return fmt.Errorf("decode old entries: %w", err)
+		return errors.Wrap(err, "decode old entries")
 	}
 	if err != nil {
-		return fmt.Errorf("write new entries: %w", err)
+		return errors.Wrap(err, "write new entries")
 	}
 	// We explicitly close even when there is a defer for Windows to be
 	// able to delete it. The defer is in place to close it in-case there
 	// are errors above.
 	if err := w.Close(); err != nil {
-		return fmt.Errorf("close old WAL: %w", err)
+		return errors.Wrap(err, "close old WAL")
 	}
 	if err := repl.Close(); err != nil {
-		return fmt.Errorf("close new WAL: %w", err)
+		return errors.Wrap(err, "close new WAL")
 	}
 	if err := fileutil.Replace(tmpdir, dir); err != nil {
-		return fmt.Errorf("replace old WAL: %w", err)
+		return errors.Wrap(err, "replace old WAL")
 	}
 	return nil
 }

@@ -2,9 +2,8 @@ package tsdb
 
 import (
 	"context"
-	"errors"
-	"fmt"
 
+	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 	"golang.org/x/sync/semaphore"
 
@@ -69,10 +68,10 @@ func (bw *asyncBlockWriter) loop() (res asyncBlockWriterResult) {
 	ref := storage.SeriesRef(0)
 	for sw := range bw.seriesChan {
 		if err := bw.chunkw.WriteChunks(sw.chks...); err != nil {
-			return asyncBlockWriterResult{err: fmt.Errorf("write chunks: %w", err)}
+			return asyncBlockWriterResult{err: errors.Wrap(err, "write chunks")}
 		}
 		if err := bw.indexw.AddSeries(ref, sw.lbls, sw.chks...); err != nil {
-			return asyncBlockWriterResult{err: fmt.Errorf("add series: %w", err)}
+			return asyncBlockWriterResult{err: errors.Wrap(err, "add series")}
 		}
 
 		stats.NumChunks += uint64(len(sw.chks))
@@ -83,7 +82,7 @@ func (bw *asyncBlockWriter) loop() (res asyncBlockWriterResult) {
 
 		for _, chk := range sw.chks {
 			if err := bw.chunkPool.Put(chk.Chunk); err != nil {
-				return asyncBlockWriterResult{err: fmt.Errorf("put chunk: %w", err)}
+				return asyncBlockWriterResult{err: errors.Wrap(err, "put chunk")}
 			}
 		}
 		ref++
@@ -91,16 +90,16 @@ func (bw *asyncBlockWriter) loop() (res asyncBlockWriterResult) {
 
 	err := bw.closeSemaphore.Acquire(context.Background(), 1)
 	if err != nil {
-		return asyncBlockWriterResult{err: fmt.Errorf("failed to acquire semaphore before closing writers: %w", err)}
+		return asyncBlockWriterResult{err: errors.Wrap(err, "failed to acquire semaphore before closing writers")}
 	}
 	defer bw.closeSemaphore.Release(1)
 
 	// If everything went fine with writing so far, close writers.
 	if err := bw.chunkw.Close(); err != nil {
-		return asyncBlockWriterResult{err: fmt.Errorf("closing chunk writer: %w", err)}
+		return asyncBlockWriterResult{err: errors.Wrap(err, "closing chunk writer")}
 	}
 	if err := bw.indexw.Close(); err != nil {
-		return asyncBlockWriterResult{err: fmt.Errorf("closing index writer: %w", err)}
+		return asyncBlockWriterResult{err: errors.Wrap(err, "closing index writer")}
 	}
 
 	return asyncBlockWriterResult{stats: stats}
@@ -119,7 +118,7 @@ func (bw *asyncBlockWriter) addSeries(lbls labels.Labels, chks []chunks.Meta) er
 		// then we should return that error too, otherwise it may be never reported
 		// and we'll never know the actual root cause.
 		if bw.result.err != nil {
-			return fmt.Errorf("%s: %w", errAsyncBlockWriterNotRunning.Error(), bw.result.err)
+			return errors.Wrap(bw.result.err, errAsyncBlockWriterNotRunning.Error())
 		}
 		return errAsyncBlockWriterNotRunning
 	}

@@ -566,8 +566,9 @@ Loop:
 				if l.peek() == ':' {
 					l.emit(desc)
 					return lexHistogram
+				} else {
+					l.errorf("missing `:` for histogram descriptor")
 				}
-				l.errorf("missing `:` for histogram descriptor")
 			} else {
 				l.errorf("bad histogram descriptor found: %q", word)
 			}

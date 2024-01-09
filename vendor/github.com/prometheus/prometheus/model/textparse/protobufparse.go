@@ -252,21 +252,21 @@ func (p *ProtobufParser) Help() ([]byte, []byte) {
 // Type returns the metric name and type in the current entry.
 // Must only be called after Next returned a type entry.
 // The returned byte slices become invalid after the next call to Next.
-func (p *ProtobufParser) Type() ([]byte, model.MetricType) {
+func (p *ProtobufParser) Type() ([]byte, MetricType) {
 	n := p.metricBytes.Bytes()
 	switch p.mf.GetType() {
 	case dto.MetricType_COUNTER:
-		return n, model.MetricTypeCounter
+		return n, MetricTypeCounter
 	case dto.MetricType_GAUGE:
-		return n, model.MetricTypeGauge
+		return n, MetricTypeGauge
 	case dto.MetricType_HISTOGRAM:
-		return n, model.MetricTypeHistogram
+		return n, MetricTypeHistogram
 	case dto.MetricType_GAUGE_HISTOGRAM:
-		return n, model.MetricTypeGaugeHistogram
+		return n, MetricTypeGaugeHistogram
 	case dto.MetricType_SUMMARY:
-		return n, model.MetricTypeSummary
+		return n, MetricTypeSummary
 	}
-	return n, model.MetricTypeUnknown
+	return n, MetricTypeUnknown
 }
 
 // Unit always returns (nil, nil) because units aren't supported by the protobuf
@@ -360,26 +360,22 @@ func (p *ProtobufParser) Exemplar(ex *exemplar.Exemplar) bool {
 	return true
 }
 
-// CreatedTimestamp returns CT or nil if CT is not present or
-// invalid (as timestamp e.g. negative value) on counters, summaries or histograms.
-func (p *ProtobufParser) CreatedTimestamp() *int64 {
-	var ct *types.Timestamp
+func (p *ProtobufParser) CreatedTimestamp(ct *types.Timestamp) bool {
+	var foundCT *types.Timestamp
 	switch p.mf.GetType() {
 	case dto.MetricType_COUNTER:
-		ct = p.mf.GetMetric()[p.metricPos].GetCounter().GetCreatedTimestamp()
+		foundCT = p.mf.GetMetric()[p.metricPos].GetCounter().GetCreatedTimestamp()
 	case dto.MetricType_SUMMARY:
-		ct = p.mf.GetMetric()[p.metricPos].GetSummary().GetCreatedTimestamp()
+		foundCT = p.mf.GetMetric()[p.metricPos].GetSummary().GetCreatedTimestamp()
 	case dto.MetricType_HISTOGRAM, dto.MetricType_GAUGE_HISTOGRAM:
-		ct = p.mf.GetMetric()[p.metricPos].GetHistogram().GetCreatedTimestamp()
+		foundCT = p.mf.GetMetric()[p.metricPos].GetHistogram().GetCreatedTimestamp()
 	default:
 	}
-	ctAsTime, err := types.TimestampFromProto(ct)
-	if err != nil {
-		// Errors means ct == nil or invalid timestamp, which we silently ignore.
-		return nil
+	if foundCT == nil {
+		return false
 	}
-	ctMilis := ctAsTime.UnixMilli()
-	return &ctMilis
+	*ct = *foundCT
+	return true
 }
 
 // Next advances the parser to the next "sample" (emulating the behavior of a

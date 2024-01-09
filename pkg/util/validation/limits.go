@@ -129,6 +129,8 @@ type Limits struct {
 	MaxGlobalExemplarsPerUser int `yaml:"max_global_exemplars_per_user" json:"max_global_exemplars_per_user" category:"experimental"`
 	// Native histograms
 	NativeHistogramsIngestionEnabled bool `yaml:"native_histograms_ingestion_enabled" json:"native_histograms_ingestion_enabled" category:"experimental"`
+	// OOO native histograms
+	OOONativeHistogramsIngestionEnabled bool `yaml:"ooo_native_histograms_ingestion_enabled" json:"ooo_native_histograms_ingestion_enabled" category:"experimental"`
 	// Active series custom trackers
 	ActiveSeriesCustomTrackersConfig activeseries.CustomTrackersConfig `yaml:"active_series_custom_trackers" json:"active_series_custom_trackers" doc:"description=Additional custom trackers for active metrics. If there are active series matching a provided matcher (map value), the count will be exposed in the custom trackers metric labeled using the tracker name (map key). Zero valued counts are not exposed (and removed when they go back to zero)." category:"advanced"`
 	// Max allowed time window for out-of-order samples.
@@ -793,6 +795,11 @@ func (o *Overrides) MetricRelabelingEnabled(userID string) bool {
 // NativeHistogramsIngestionEnabled returns whether to ingest native histograms in the ingester
 func (o *Overrides) NativeHistogramsIngestionEnabled(userID string) bool {
 	return o.getOverridesForUser(userID).NativeHistogramsIngestionEnabled
+}
+
+// OOONativeHistogramsIngestionEnabled returns whether to ingest OOO native histograms in the ingester
+func (o *Overrides) OOONativeHistogramsIngestionEnabled(userID string) bool {
+	return o.getOverridesForUser(userID).OOONativeHistogramsIngestionEnabled
 }
 
 // RulerTenantShardSize returns shard size (number of rulers) used by this tenant when using shuffle-sharding strategy.

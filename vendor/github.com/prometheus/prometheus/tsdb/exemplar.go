@@ -15,7 +15,6 @@ package tsdb
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"unicode/utf8"
 
@@ -364,7 +363,7 @@ func (ce *CircularExemplarStorage) AddExemplar(l labels.Labels, e exemplar.Exemp
 
 	err := ce.validateExemplar(seriesLabels, e, true)
 	if err != nil {
-		if errors.Is(err, storage.ErrDuplicateExemplar) {
+		if err == storage.ErrDuplicateExemplar {
 			// Duplicate exemplar, noop.
 			return nil
 		}

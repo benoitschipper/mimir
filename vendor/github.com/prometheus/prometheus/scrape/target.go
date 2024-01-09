@@ -30,6 +30,7 @@ import (
 	"github.com/prometheus/prometheus/model/histogram"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/relabel"
+	"github.com/prometheus/prometheus/model/textparse"
 	"github.com/prometheus/prometheus/model/value"
 	"github.com/prometheus/prometheus/storage"
 )
@@ -86,12 +87,12 @@ type MetricMetadataStore interface {
 // MetricMetadata is a piece of metadata for a metric.
 type MetricMetadata struct {
 	Metric string
-	Type   model.MetricType
+	Type   textparse.MetricType
 	Help   string
 	Unit   string
 }
 
-func (t *Target) ListMetadata() []MetricMetadata {
+func (t *Target) MetadataList() []MetricMetadata {
 	t.mtx.RLock()
 	defer t.mtx.RUnlock()
 
@@ -101,7 +102,7 @@ func (t *Target) ListMetadata() []MetricMetadata {
 	return t.metadata.ListMetadata()
 }
 
-func (t *Target) SizeMetadata() int {
+func (t *Target) MetadataSize() int {
 	t.mtx.RLock()
 	defer t.mtx.RUnlock()
 
@@ -112,7 +113,7 @@ func (t *Target) SizeMetadata() int {
 	return t.metadata.SizeMetadata()
 }
 
-func (t *Target) LengthMetadata() int {
+func (t *Target) MetadataLength() int {
 	t.mtx.RLock()
 	defer t.mtx.RUnlock()
 
@@ -123,8 +124,8 @@ func (t *Target) LengthMetadata() int {
 	return t.metadata.LengthMetadata()
 }
 
-// GetMetadata returns type and help metadata for the given metric.
-func (t *Target) GetMetadata(metric string) (MetricMetadata, bool) {
+// Metadata returns type and help metadata for the given metric.
+func (t *Target) Metadata(metric string) (MetricMetadata, bool) {
 	t.mtx.RLock()
 	defer t.mtx.RUnlock()
 
@@ -365,19 +366,13 @@ type bucketLimitAppender struct {
 
 func (app *bucketLimitAppender) AppendHistogram(ref storage.SeriesRef, lset labels.Labels, t int64, h *histogram.Histogram, fh *histogram.FloatHistogram) (storage.SeriesRef, error) {
 	if h != nil {
-		for len(h.PositiveBuckets)+len(h.NegativeBuckets) > app.limit {
-			if h.Schema == -4 {
-				return 0, errBucketLimit
-			}
-			h = h.ReduceResolution(h.Schema - 1)
+		if len(h.PositiveBuckets)+len(h.NegativeBuckets) > app.limit {
+			return 0, errBucketLimit
 		}
 	}
 	if fh != nil {
-		for len(fh.PositiveBuckets)+len(fh.NegativeBuckets) > app.limit {
-			if fh.Schema == -4 {
-				return 0, errBucketLimit
-			}
-			fh = fh.ReduceResolution(fh.Schema - 1)
+		if len(fh.PositiveBuckets)+len(fh.NegativeBuckets) > app.limit {
+			return 0, errBucketLimit
 		}
 	}
 	ref, err := app.Appender.AppendHistogram(ref, lset, t, h, fh)

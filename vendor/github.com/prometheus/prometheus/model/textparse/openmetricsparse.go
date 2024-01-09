@@ -24,7 +24,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/prometheus/common/model"
+	"github.com/gogo/protobuf/types"
 
 	"github.com/prometheus/prometheus/model/exemplar"
 	"github.com/prometheus/prometheus/model/histogram"
@@ -76,7 +76,7 @@ type OpenMetricsParser struct {
 	builder labels.ScratchBuilder
 	series  []byte
 	text    []byte
-	mtype   model.MetricType
+	mtype   MetricType
 	val     float64
 	ts      int64
 	hasTS   bool
@@ -128,7 +128,7 @@ func (p *OpenMetricsParser) Help() ([]byte, []byte) {
 // Type returns the metric name and type in the current entry.
 // Must only be called after Next returned a type entry.
 // The returned byte slices become invalid after the next call to Next.
-func (p *OpenMetricsParser) Type() ([]byte, model.MetricType) {
+func (p *OpenMetricsParser) Type() ([]byte, MetricType) {
 	return p.l.b[p.offsets[0]:p.offsets[1]], p.mtype
 }
 
@@ -213,10 +213,9 @@ func (p *OpenMetricsParser) Exemplar(e *exemplar.Exemplar) bool {
 	return true
 }
 
-// CreatedTimestamp returns nil as it's not implemented yet.
-// TODO(bwplotka): https://github.com/prometheus/prometheus/issues/12980
-func (p *OpenMetricsParser) CreatedTimestamp() *int64 {
-	return nil
+// CreatedTimestamp returns false because OpenMetricsParser does not support created timestamps (yet).
+func (p *OpenMetricsParser) CreatedTimestamp(_ *types.Timestamp) bool {
+	return false
 }
 
 // nextToken returns the next token from the openMetricsLexer.
@@ -274,21 +273,21 @@ func (p *OpenMetricsParser) Next() (Entry, error) {
 		case tType:
 			switch s := yoloString(p.text); s {
 			case "counter":
-				p.mtype = model.MetricTypeCounter
+				p.mtype = MetricTypeCounter
 			case "gauge":
-				p.mtype = model.MetricTypeGauge
+				p.mtype = MetricTypeGauge
 			case "histogram":
-				p.mtype = model.MetricTypeHistogram
+				p.mtype = MetricTypeHistogram
 			case "gaugehistogram":
-				p.mtype = model.MetricTypeGaugeHistogram
+				p.mtype = MetricTypeGaugeHistogram
 			case "summary":
-				p.mtype = model.MetricTypeSummary
+				p.mtype = MetricTypeSummary
 			case "info":
-				p.mtype = model.MetricTypeInfo
+				p.mtype = MetricTypeInfo
 			case "stateset":
-				p.mtype = model.MetricTypeStateset
+				p.mtype = MetricTypeStateset
 			case "unknown":
-				p.mtype = model.MetricTypeUnknown
+				p.mtype = MetricTypeUnknown
 			default:
 				return EntryInvalid, fmt.Errorf("invalid metric type %q", s)
 			}

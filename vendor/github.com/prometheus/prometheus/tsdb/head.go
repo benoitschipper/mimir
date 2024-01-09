@@ -15,19 +15,18 @@ package tsdb
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"math"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"sync"
 	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/oklog/ulid"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
 
@@ -125,8 +124,7 @@ type Head struct {
 
 	cardinalityMutex      sync.Mutex
 	cardinalityCache      *index.PostingsStats // Posting stats cache which will expire after 30sec.
-	cardinalityCacheKey   string
-	lastPostingsStatsCall time.Duration // Last posting stats call (PostingsCardinalityStats()) time for caching.
+	lastPostingsStatsCall time.Duration        // Last posting stats call (PostingsCardinalityStats()) time for caching.
 
 	// chunkDiskMapper is used to write and read Head chunks to/from disk.
 	chunkDiskMapper chunkDiskMapper
@@ -165,9 +163,10 @@ type HeadOptions struct {
 	// EnableNativeHistograms enables the ingestion of native histograms.
 	EnableNativeHistograms atomic.Bool
 
-	// EnableCreatedTimestampZeroIngestion enables the ingestion of the created timestamp as a synthetic zero sample.
-	// See: https://github.com/prometheus/proposals/blob/main/proposals/2023-06-13_created-timestamp.md
-	EnableCreatedTimestampZeroIngestion bool
+	// EnableOOONativeHistograms enables the ingestion of OOO native histograms.
+	// It will only take effect if EnableNativeHistograms is set to true and the
+	// OutOfOrderTimeWindow is > 0
+	EnableOOONativeHistograms atomic.Bool
 
 	ChunkRange int64
 	// ChunkDirRoot is the parent directory of the chunks directory.
@@ -664,11 +663,11 @@ func (h *Head) Init(minValidTime int64) error {
 		if h.wal != nil {
 			_, endAt, err := wlog.Segments(h.wal.Dir())
 			if err != nil {
-				return fmt.Errorf("finding WAL segments: %w", err)
+				return errors.Wrap(err, "finding WAL segments")
 			}
 
 			_, idx, _, err := LastChunkSnapshot(h.opts.ChunkDirRoot)
-			if err != nil && !errors.Is(err, record.ErrNotFound) {
+			if err != nil && err != record.ErrNotFound {
 				level.Error(h.logger).Log("msg", "Could not find last snapshot", "err", err)
 			}
 
@@ -715,8 +714,7 @@ func (h *Head) Init(minValidTime int64) error {
 		if err != nil {
 			// TODO(codesome): clear out all m-map chunks here for refSeries.
 			level.Error(h.logger).Log("msg", "Loading on-disk chunks failed", "err", err)
-			var cerr *chunks.CorruptionErr
-			if errors.As(err, &cerr) {
+			if _, ok := errors.Cause(err).(*chunks.CorruptionErr); ok {
 				h.metrics.mmapChunkCorruptionTotal.Inc()
 			}
 
@@ -743,14 +741,14 @@ func (h *Head) Init(minValidTime int64) error {
 	checkpointReplayStart := time.Now()
 	// Backfill the checkpoint first if it exists.
 	dir, startFrom, err := wlog.LastCheckpoint(h.wal.Dir())
-	if err != nil && !errors.Is(err, record.ErrNotFound) {
-		return fmt.Errorf("find last checkpoint: %w", err)
+	if err != nil && err != record.ErrNotFound {
+		return errors.Wrap(err, "find last checkpoint")
 	}
 
 	// Find the last segment.
 	_, endAt, e := wlog.Segments(h.wal.Dir())
 	if e != nil {
-		return fmt.Errorf("finding WAL segments: %w", e)
+		return errors.Wrap(e, "finding WAL segments")
 	}
 
 	h.startWALReplayStatus(startFrom, endAt)
@@ -759,7 +757,7 @@ func (h *Head) Init(minValidTime int64) error {
 	if err == nil && startFrom >= snapIdx {
 		sr, err := wlog.NewSegmentsReader(dir)
 		if err != nil {
-			return fmt.Errorf("open checkpoint: %w", err)
+			return errors.Wrap(err, "open checkpoint")
 		}
 		defer func() {
 			if err := sr.Close(); err != nil {
@@ -770,7 +768,7 @@ func (h *Head) Init(minValidTime int64) error {
 		// A corrupted checkpoint is a hard error for now and requires user
 		// intervention. There's likely little data that can be recovered anyway.
 		if err := h.loadWAL(wlog.NewReader(sr), multiRef, mmappedChunks, oooMmappedChunks); err != nil {
-			return fmt.Errorf("backfill checkpoint: %w", err)
+			return errors.Wrap(err, "backfill checkpoint")
 		}
 		h.updateWALReplayStatusRead(startFrom)
 		startFrom++
@@ -787,7 +785,7 @@ func (h *Head) Init(minValidTime int64) error {
 	for i := startFrom; i <= endAt; i++ {
 		s, err := wlog.OpenReadSegment(wlog.SegmentName(h.wal.Dir(), i))
 		if err != nil {
-			return fmt.Errorf("open WAL segment: %d: %w", i, err)
+			return errors.Wrap(err, fmt.Sprintf("open WAL segment: %d", i))
 		}
 
 		offset := 0
@@ -800,7 +798,7 @@ func (h *Head) Init(minValidTime int64) error {
 			continue
 		}
 		if err != nil {
-			return fmt.Errorf("segment reader (offset=%d): %w", offset, err)
+			return errors.Wrapf(err, "segment reader (offset=%d)", offset)
 		}
 		err = h.loadWAL(wlog.NewReader(sr), multiRef, mmappedChunks, oooMmappedChunks)
 		if err := sr.Close(); err != nil {
@@ -819,14 +817,14 @@ func (h *Head) Init(minValidTime int64) error {
 		// Replay WBL.
 		startFrom, endAt, e = wlog.Segments(h.wbl.Dir())
 		if e != nil {
-			return &errLoadWbl{fmt.Errorf("finding WBL segments: %w", e)}
+			return &errLoadWbl{errors.Wrap(e, "finding WBL segments")}
 		}
 		h.startWALReplayStatus(startFrom, endAt)
 
 		for i := startFrom; i <= endAt; i++ {
 			s, err := wlog.OpenReadSegment(wlog.SegmentName(h.wbl.Dir(), i))
 			if err != nil {
-				return &errLoadWbl{fmt.Errorf("open WBL segment: %d: %w", i, err)}
+				return &errLoadWbl{errors.Wrap(err, fmt.Sprintf("open WBL segment: %d", i))}
 			}
 
 			sr := wlog.NewSegmentBufReader(s)
@@ -947,7 +945,7 @@ func (h *Head) loadMmappedChunks(refSeries map[chunks.HeadSeriesRef]*memSeries) 
 		return nil
 	}); err != nil {
 		// secondLastRef because the lastRef caused an error.
-		return nil, nil, secondLastRef, fmt.Errorf("iterate on on-disk chunks: %w", err)
+		return nil, nil, secondLastRef, errors.Wrap(err, "iterate on on-disk chunks")
 	}
 	return mmappedChunks, oooMmappedChunks, lastRef, nil
 }
@@ -1034,25 +1032,28 @@ func (h *Head) DisableNativeHistograms() {
 	h.opts.EnableNativeHistograms.Store(false)
 }
 
+// EnableOOONativeHistograms enables the ingestion of out-of-order native histograms.
+func (h *Head) EnableOOONativeHistograms() {
+	h.opts.EnableOOONativeHistograms.Store(true)
+}
+
+// DisableNativeHistograms disables the ingestion of out-of-order native histograms.
+func (h *Head) DisableOOONativeHistograms() {
+	h.opts.EnableOOONativeHistograms.Store(false)
+}
+
 // PostingsCardinalityStats returns highest cardinality stats by label and value names.
 func (h *Head) PostingsCardinalityStats(statsByLabelName string, limit int) *index.PostingsStats {
-	cacheKey := statsByLabelName + ";" + strconv.Itoa(limit)
-
 	h.cardinalityMutex.Lock()
 	defer h.cardinalityMutex.Unlock()
-	if h.cardinalityCacheKey != cacheKey {
+	currentTime := time.Duration(time.Now().Unix()) * time.Second
+	seconds := currentTime - h.lastPostingsStatsCall
+	if seconds > cardinalityCacheExpirationTime {
 		h.cardinalityCache = nil
-	} else {
-		currentTime := time.Duration(time.Now().Unix()) * time.Second
-		seconds := currentTime - h.lastPostingsStatsCall
-		if seconds > cardinalityCacheExpirationTime {
-			h.cardinalityCache = nil
-		}
 	}
 	if h.cardinalityCache != nil {
 		return h.cardinalityCache
 	}
-	h.cardinalityCacheKey = cacheKey
 	h.cardinalityCache = h.postings.Stats(statsByLabelName, limit)
 	h.lastPostingsStatsCall = time.Duration(time.Now().Unix()) * time.Second
 
@@ -1266,12 +1267,12 @@ func (h *Head) truncateWAL(mint int64) error {
 
 	first, last, err := wlog.Segments(h.wal.Dir())
 	if err != nil {
-		return fmt.Errorf("get segment range: %w", err)
+		return errors.Wrap(err, "get segment range")
 	}
 	// Start a new segment, so low ingestion volume TSDB don't have more WAL than
 	// needed.
 	if _, err := h.wal.NextSegment(); err != nil {
-		return fmt.Errorf("next segment: %w", err)
+		return errors.Wrap(err, "next segment")
 	}
 	last-- // Never consider last segment for checkpoint.
 	if last < 0 {
@@ -1298,11 +1299,10 @@ func (h *Head) truncateWAL(mint int64) error {
 	h.metrics.checkpointCreationTotal.Inc()
 	if _, err = wlog.Checkpoint(h.logger, h.wal, first, last, keep, mint); err != nil {
 		h.metrics.checkpointCreationFail.Inc()
-		var cerr *chunks.CorruptionErr
-		if errors.As(err, &cerr) {
+		if _, ok := errors.Cause(err).(*wlog.CorruptionErr); ok {
 			h.metrics.walCorruptionsTotal.Inc()
 		}
-		return fmt.Errorf("create checkpoint: %w", err)
+		return errors.Wrap(err, "create checkpoint")
 	}
 	if err := h.wal.Truncate(last + 1); err != nil {
 		// If truncating fails, we'll just try again at the next checkpoint.
@@ -1395,7 +1395,7 @@ func (h *Head) truncateSeriesAndChunkDiskMapper(caller string) error {
 
 	// Truncate the chunk m-mapper.
 	if err := h.chunkDiskMapper.Truncate(uint32(minMmapFile)); err != nil {
-		return fmt.Errorf("truncate chunks.HeadReadWriter by file number: %w", err)
+		return errors.Wrap(err, "truncate chunks.HeadReadWriter by file number")
 	}
 	return nil
 }
@@ -1510,13 +1510,13 @@ func (h *Head) Delete(ctx context.Context, mint, maxt int64, ms ...*labels.Match
 
 	p, err := ir.PostingsForMatchers(ctx, false, ms...)
 	if err != nil {
-		return fmt.Errorf("select series: %w", err)
+		return errors.Wrap(err, "select series")
 	}
 
 	var stones []tombstones.Stone
 	for p.Next() {
 		if err := ctx.Err(); err != nil {
-			return fmt.Errorf("select series: %w", err)
+			return errors.Wrap(err, "select series")
 		}
 
 		series := h.series.getByID(chunks.HeadSeriesRef(p.At()))
@@ -1538,8 +1538,8 @@ func (h *Head) Delete(ctx context.Context, mint, maxt int64, ms ...*labels.Match
 	if p.Err() != nil {
 		return p.Err()
 	}
-	if err := ctx.Err(); err != nil {
-		return fmt.Errorf("select series: %w", err)
+	if ctx.Err() != nil {
+		return errors.Wrap(err, "select series")
 	}
 
 	if h.wal != nil {

@@ -108,10 +108,6 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if c.Regex.Regexp == nil {
 		c.Regex = MustNewRegexp("")
 	}
-	return c.Validate()
-}
-
-func (c *Config) Validate() error {
 	if c.Action == "" {
 		return fmt.Errorf("relabel action cannot be empty")
 	}
@@ -121,13 +117,7 @@ func (c *Config) Validate() error {
 	if (c.Action == Replace || c.Action == HashMod || c.Action == Lowercase || c.Action == Uppercase || c.Action == KeepEqual || c.Action == DropEqual) && c.TargetLabel == "" {
 		return fmt.Errorf("relabel configuration for %s action requires 'target_label' value", c.Action)
 	}
-	if c.Action == Replace && !strings.Contains(c.TargetLabel, "$") && !model.LabelName(c.TargetLabel).IsValid() {
-		return fmt.Errorf("%q is invalid 'target_label' for %s action", c.TargetLabel, c.Action)
-	}
-	if c.Action == Replace && strings.Contains(c.TargetLabel, "$") && !relabelTarget.MatchString(c.TargetLabel) {
-		return fmt.Errorf("%q is invalid 'target_label' for %s action", c.TargetLabel, c.Action)
-	}
-	if (c.Action == Lowercase || c.Action == Uppercase || c.Action == KeepEqual || c.Action == DropEqual) && !model.LabelName(c.TargetLabel).IsValid() {
+	if (c.Action == Replace || c.Action == Lowercase || c.Action == Uppercase || c.Action == KeepEqual || c.Action == DropEqual) && !relabelTarget.MatchString(c.TargetLabel) {
 		return fmt.Errorf("%q is invalid 'target_label' for %s action", c.TargetLabel, c.Action)
 	}
 	if (c.Action == Lowercase || c.Action == Uppercase || c.Action == KeepEqual || c.Action == DropEqual) && c.Replacement != DefaultRelabelConfig.Replacement {
@@ -274,11 +264,12 @@ func relabel(cfg *Config, lb *labels.Builder) (keep bool) {
 		}
 		target := model.LabelName(cfg.Regex.ExpandString([]byte{}, cfg.TargetLabel, val, indexes))
 		if !target.IsValid() {
+			lb.Del(cfg.TargetLabel)
 			break
 		}
 		res := cfg.Regex.ExpandString([]byte{}, cfg.Replacement, val, indexes)
 		if len(res) == 0 {
-			lb.Del(string(target))
+			lb.Del(cfg.TargetLabel)
 			break
 		}
 		lb.Set(string(target), string(res))

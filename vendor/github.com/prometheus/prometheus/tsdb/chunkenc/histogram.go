@@ -640,10 +640,10 @@ func (a *HistogramAppender) AppendHistogram(prev *HistogramAppender, t int64, h 
 		pForwardInserts, nForwardInserts, okToAppend, counterReset := a.appendable(h)
 		if !okToAppend || counterReset {
 			if appendOnly {
-				if counterReset {
-					return nil, false, a, fmt.Errorf("histogram counter reset")
+				if !okToAppend {
+					return nil, false, a, fmt.Errorf("histogram schema change")
 				}
-				return nil, false, a, fmt.Errorf("histogram schema change")
+				return nil, false, a, fmt.Errorf("histogram counter reset")
 			}
 			newChunk := NewHistogramChunk()
 			app, err := newChunk.Appender()

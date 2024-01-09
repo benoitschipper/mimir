@@ -22,6 +22,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/pkg/errors"
 
 	tsdb_errors "github.com/prometheus/prometheus/tsdb/errors"
 	"github.com/prometheus/prometheus/tsdb/fileutil"
@@ -34,7 +35,7 @@ func repairBadIndexVersion(logger log.Logger, dir string) error {
 	// We must actually set the index file version to 2 and revert the meta.json version back to 1.
 	dirs, err := blockDirs(dir)
 	if err != nil {
-		return fmt.Errorf("list block dirs in %q: %w", dir, err)
+		return errors.Wrapf(err, "list block dirs in %q", dir)
 	}
 
 	tmpFiles := make([]string, 0, len(dirs))
@@ -70,54 +71,44 @@ func repairBadIndexVersion(logger log.Logger, dir string) error {
 
 		repl, err := os.Create(filepath.Join(d, "index.repaired"))
 		if err != nil {
-			return fmt.Errorf("create index.repaired for block dir: %v: %w", d, err)
+			return errors.Wrapf(err, "create index.repaired for block dir: %v", d)
 		}
 		tmpFiles = append(tmpFiles, repl.Name())
 
 		broken, err := os.Open(filepath.Join(d, indexFilename))
 		if err != nil {
-			return fmt.Errorf("open broken index for block dir: %v: %w", d, err)
+			return errors.Wrapf(err, "open broken index for block dir: %v", d)
 		}
 		if _, err := io.Copy(repl, broken); err != nil {
-			return fmt.Errorf("copy content of index to index.repaired for block dir: %v: %w", d, err)
+			return errors.Wrapf(err, "copy content of index to index.repaired for block dir: %v", d)
 		}
 
 		// Set the 5th byte to 2 to indicate the correct file format version.
 		if _, err := repl.WriteAt([]byte{2}, 4); err != nil {
-			errs := tsdb_errors.NewMulti(
-				fmt.Errorf("rewrite of index.repaired for block dir: %v: %w", d, err))
-			if err := repl.Close(); err != nil {
-				errs.Add(fmt.Errorf("close: %w", err))
-			}
-			return errs.Err()
+			return tsdb_errors.NewMulti(
+				errors.Wrapf(err, "rewrite of index.repaired for block dir: %v", d),
+				errors.Wrap(repl.Close(), "close"),
+			).Err()
 		}
 		if err := repl.Sync(); err != nil {
-			errs := tsdb_errors.NewMulti(
-				fmt.Errorf("sync of index.repaired for block dir: %v: %w", d, err))
-			if err := repl.Close(); err != nil {
-				errs.Add(fmt.Errorf("close: %w", err))
-			}
-			return errs.Err()
+			return tsdb_errors.NewMulti(
+				errors.Wrapf(err, "sync of index.repaired for block dir: %v", d),
+				errors.Wrap(repl.Close(), "close"),
+			).Err()
 		}
 		if err := repl.Close(); err != nil {
-			return fmt.Errorf("close repaired index for block dir: %v: %w", d, err)
+			return errors.Wrapf(repl.Close(), "close repaired index for block dir: %v", d)
 		}
 		if err := broken.Close(); err != nil {
-			if err := repl.Close(); err != nil {
-				return fmt.Errorf("close broken index for block dir: %v: %w", d, err)
-			}
+			return errors.Wrapf(repl.Close(), "close broken index for block dir: %v", d)
 		}
 		if err := fileutil.Replace(repl.Name(), broken.Name()); err != nil {
-			if err := repl.Close(); err != nil {
-				return fmt.Errorf("replaced broken index with index.repaired for block dir: %v: %w", d, err)
-			}
+			return errors.Wrapf(repl.Close(), "replaced broken index with index.repaired for block dir: %v", d)
 		}
 		// Reset version of meta.json to 1.
 		meta.Version = metaVersion1
 		if _, err := writeMetaFile(logger, d, meta); err != nil {
-			if err := repl.Close(); err != nil {
-				return fmt.Errorf("write meta for block dir: %v: %w", d, err)
-			}
+			return errors.Wrapf(repl.Close(), "write meta for block dir: %v", d)
 		}
 	}
 	return nil

@@ -3,7 +3,6 @@ package tsdb
 import (
 	"container/heap"
 	"encoding/gob"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -13,7 +12,7 @@ import (
 
 	"github.com/golang/snappy"
 
-	tsdb_errors "github.com/prometheus/prometheus/tsdb/errors"
+	"github.com/prometheus/prometheus/tsdb/errors"
 )
 
 // symbolFlushers writes symbols to provided files in background goroutines.
@@ -179,7 +178,7 @@ func writeSymbolsToFile(filename string, symbols []string) error {
 	sn := snappy.NewBufferedWriter(f)
 	enc := gob.NewEncoder(sn)
 
-	errs := tsdb_errors.NewMulti()
+	errs := errors.NewMulti()
 
 	for _, s := range symbols {
 		err := enc.Encode(s)
@@ -271,7 +270,7 @@ func newSymbolsIterator(filenames []string) (*symbolsIterator, error) {
 func (sit *symbolsIterator) NextSymbol() (string, error) {
 	for len(sit.heap) > 0 {
 		result, err := sit.heap[0].Next()
-		if errors.Is(err, io.EOF) {
+		if err == io.EOF {
 			// End of file, remove it from heap, and try next file.
 			heap.Remove(&sit.heap, 0)
 			continue
@@ -297,7 +296,7 @@ func (sit *symbolsIterator) NextSymbol() (string, error) {
 
 // Close all files.
 func (sit *symbolsIterator) Close() error {
-	errs := tsdb_errors.NewMulti()
+	errs := errors.NewMulti()
 	for _, f := range sit.files {
 		errs.Add(f.Close())
 	}

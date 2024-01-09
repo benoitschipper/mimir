@@ -605,10 +605,10 @@ func (a *FloatHistogramAppender) AppendFloatHistogram(prev *FloatHistogramAppend
 		pForwardInserts, nForwardInserts, okToAppend, counterReset := a.appendable(h)
 		if !okToAppend || counterReset {
 			if appendOnly {
-				if counterReset {
-					return nil, false, a, fmt.Errorf("float histogram counter reset")
+				if !okToAppend {
+					return nil, false, a, fmt.Errorf("float histogram schema change")
 				}
-				return nil, false, a, fmt.Errorf("float histogram schema change")
+				return nil, false, a, fmt.Errorf("float histogram counter reset")
 			}
 			newChunk := NewFloatHistogramChunk()
 			app, err := newChunk.Appender()
