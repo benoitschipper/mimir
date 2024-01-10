@@ -2243,7 +2243,7 @@ alertmanager_client:
 # CLI flag: -alertmanager.enable-state-cleanup
 [enable_state_cleanup: <boolean> | default = true]
 
-# Enable UTF-8 strict mode.
+# (advanced) Enable UTF-8 strict mode.
 # CLI flag: -alertmanager.utf8-strict-mode
 [utf8_strict_mode: <boolean> | default = false]
 ```
