@@ -13596,6 +13596,17 @@
           "fieldFlag": "alertmanager.enable-state-cleanup",
           "fieldType": "boolean",
           "fieldCategory": "advanced"
+        },
+        {
+          "kind": "field",
+          "name": "utf8_strict_mode",
+          "required": false,
+          "desc": "Enables UTF-8 strict mode.",
+          "fieldValue": null,
+          "fieldDefaultValue": false,
+          "fieldFlag": "alertmanager.utf8-strict-mode",
+          "fieldType": "boolean",
+          "fieldCategory": "advanced"
         }
       ],
       "fieldValue": null,
