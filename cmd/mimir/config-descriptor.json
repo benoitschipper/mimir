@@ -13601,7 +13601,7 @@
           "kind": "field",
           "name": "utf8_strict_mode",
           "required": false,
-          "desc": "Enables UTF-8 strict mode.",
+          "desc": "Enable UTF-8 strict mode.",
           "fieldValue": null,
           "fieldDefaultValue": false,
           "fieldFlag": "alertmanager.utf8-strict-mode",
