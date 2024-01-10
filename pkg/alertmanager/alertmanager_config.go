@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // This file contains code for the migration from classic mode to UTF-8 mode
 // in the Alertmanager. It is intended to be used to gather data about
 // configurations that are incompatible with the UTF-8 matchers parser, so
