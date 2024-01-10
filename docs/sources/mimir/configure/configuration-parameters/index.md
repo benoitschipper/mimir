@@ -2242,6 +2242,10 @@ alertmanager_client:
 # removed for any tenant that does not have a configuration.
 # CLI flag: -alertmanager.enable-state-cleanup
 [enable_state_cleanup: <boolean> | default = true]
+
+# Enable UTF-8 strict mode.
+# CLI flag: -alertmanager.utf8-strict-mode
+[utf8_strict_mode: <boolean> | default = false]
 ```
 
 ### alertmanager_storage
