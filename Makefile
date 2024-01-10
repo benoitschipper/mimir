@@ -95,7 +95,7 @@ SED ?= $(shell which gsed 2>/dev/null || which sed)
 # really depends on whether the image is going to be used locally (then GOARCH should be set based on
 # host architecture), or pushed remotely. Ideally one would use push-multiarch-* targets instead
 # in that case.
-%/$(UPTODATE): GOOS=linux
+%/$(UPTODATE): GOOS=darwin
 %/$(UPTODATE): %/Dockerfile
 	@echo
 	$(SUDO) docker build --build-arg=revision=$(GIT_REVISION) --build-arg=goproxyValue=$(GOPROXY_VALUE) -t $(IMAGE_PREFIX)$(shell basename $(@D)) -t $(IMAGE_PREFIX)$(shell basename $(@D)):$(IMAGE_TAG) $(@D)/
