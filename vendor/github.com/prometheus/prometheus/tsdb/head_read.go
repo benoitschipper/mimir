@@ -15,11 +15,12 @@ package tsdb
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"math"
 	"sync"
 
 	"github.com/go-kit/log/level"
-	"github.com/pkg/errors"
 	"golang.org/x/exp/slices"
 
 	"github.com/prometheus/prometheus/model/labels"
@@ -137,7 +138,7 @@ func (h *headIndexReader) SortedPostings(p index.Postings) index.Postings {
 		}
 	}
 	if err := p.Err(); err != nil {
-		return index.ErrPostings(errors.Wrap(err, "expand postings"))
+		return index.ErrPostings(fmt.Errorf("expand postings: %w", err))
 	}
 
 	slices.SortFunc(series, func(a, b *memSeries) int {
@@ -417,7 +418,8 @@ func (s *memSeries) chunk(id chunks.HeadChunkID, cdm chunkDiskMapper, memChunkPo
 	if ix < len(s.mmappedChunks) {
 		chk, err := cdm.Chunk(s.mmappedChunks[ix].ref)
 		if err != nil {
-			if _, ok := err.(*chunks.CorruptionErr); ok {
+			var cerr *chunks.CorruptionErr
+			if errors.As(err, &cerr) {
 				panic(err)
 			}
 			return nil, false, false, err
@@ -535,7 +537,7 @@ func (s *memSeries) oooMergedChunks(meta chunks.Meta, cdm chunkDiskMapper, mint,
 		if c.meta.Ref == oooHeadRef {
 			chks, err := s.ooo.oooHeadChunk.chunk.ToEncodedChunks(meta.OOOLastMinTime, meta.OOOLastMaxTime)
 			if err != nil {
-				return nil, errors.Wrap(err, "failed to convert ooo head chunk to encoded chunk(s)")
+				return nil, fmt.Errorf("failed to convert ooo head chunk to encoded chunk(s): %w", err)
 			}
 			// If the head results in multiple chunks, the chunks will share the same reference as the head chunk,
 			// which is technically true, but if some code does not check against the head, could lead to unexpected results.
@@ -545,8 +547,9 @@ func (s *memSeries) oooMergedChunks(meta chunks.Meta, cdm chunkDiskMapper, mint,
 		} else {
 			chk, err := cdm.Chunk(c.ref)
 			if err != nil {
-				if _, ok := err.(*chunks.CorruptionErr); ok {
-					return nil, errors.Wrap(err, "invalid ooo mmapped chunk")
+				var cerr *chunks.CorruptionErr
+				if errors.As(err, &cerr) {
+					return nil, fmt.Errorf("invalid ooo mmapped chunk: %w", err)
 				}
 				return nil, err
 			}

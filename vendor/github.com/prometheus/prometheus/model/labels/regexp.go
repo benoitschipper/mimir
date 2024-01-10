@@ -21,6 +21,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 	"github.com/grafana/regexp"
 	"github.com/grafana/regexp/syntax"
+	"golang.org/x/exp/slices"
 )
 
 const (
@@ -283,7 +284,8 @@ func findSetMatchesFromAlternate(re *syntax.Regexp, base string) (matches []stri
 // clearCapture removes capture operation as they are not used for matching.
 func clearCapture(regs ...*syntax.Regexp) {
 	for _, r := range regs {
-		if r.Op == syntax.OpCapture {
+		// Iterate on the regexp because capture groups could be nested.
+		for r.Op == syntax.OpCapture {
 			*r = *r.Sub[0]
 		}
 	}
@@ -339,7 +341,9 @@ func (m *FastRegexMatcher) MatchString(s string) bool {
 }
 
 func (m *FastRegexMatcher) SetMatches() []string {
-	return m.setMatches
+	// IMPORTANT: always return a copy, otherwise if the caller manipulate this slice it will
+	// also get manipulated in the cached FastRegexMatcher instance.
+	return slices.Clone(m.setMatches)
 }
 
 func (m *FastRegexMatcher) GetRegexString() string {
@@ -362,7 +366,7 @@ func optimizeAlternatingLiterals(s string) (StringMatcher, []string) {
 	// If there are no alternates, check if the string is a literal
 	if estimatedAlternates == 1 {
 		if regexp.QuoteMeta(s) == s {
-			return &equalStringMatcher{s: s, caseSensitive: true}, nil
+			return &equalStringMatcher{s: s, caseSensitive: true}, []string{s}
 		}
 		return nil, nil
 	}

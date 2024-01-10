@@ -162,9 +162,10 @@ func (t *WriteReadSeriesTest) RunInner(ctx context.Context, now time.Time, write
 		series := generateSeries(metricName, timestamp, t.cfg.NumSeries)
 		if err := t.writeSamples(ctx, typeLabel, timestamp, series, records); err != nil {
 			errs.Add(err)
+			level.Info(t.logger).Log("msg", "Could not write in-order series", "metricName", metricName, "ts", timestamp)
 			break
 		} else {
-			level.Info(t.logger).Log("msg", "Successfully wrote in-order series", "ts", timestamp)
+			level.Info(t.logger).Log("msg", "Successfully wrote in-order series", "metricName", metricName, "ts", timestamp)
 		}
 	}
 
@@ -181,8 +182,9 @@ func (t *WriteReadSeriesTest) RunInner(ctx context.Context, now time.Time, write
 		series := generateSeries(metricName, timestamp, t.cfg.NumSeries)
 		if err := t.writeOOOSamples(ctx, typeLabel, timestamp, series, records); err != nil {
 			errs.Add(err)
+			level.Info(t.logger).Log("msg", "Could not write OOO series", "metricName", metricName, "ts", timestamp)
 		} else {
-			level.Info(t.logger).Log("msg", "Successfully wrote OOO series", "ts", timestamp)
+			level.Info(t.logger).Log("msg", "Successfully wrote OOO series", "metricName", metricName, "ts", timestamp)
 		}
 		if records.earliestWrittenTimestamp.IsZero() || now.Before(records.earliestWrittenTimestamp) {
 			records.earliestWrittenTimestamp = now
