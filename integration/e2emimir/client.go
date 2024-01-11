@@ -403,9 +403,9 @@ func (r *addOrgIDRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 // ServerStatus represents a Alertmanager status response
 // TODO: Upgrade to Alertmanager v0.20.0+ and utilize vendored structs
 type ServerStatus struct {
-	Data struct {
-		ConfigYaml string `json:"configYAML"`
-	} `json:"data"`
+	Config struct {
+		Original string `json:"original"`
+	} `json:"config"`
 }
 
 // GetPrometheusRules fetches the rules from the Prometheus endpoint /api/v1/rules.
@@ -680,7 +680,7 @@ func (c *Client) GetAlertmanagerConfig(ctx context.Context) (*alertConfig.Config
 	}
 
 	cfg := &alertConfig.Config{}
-	err = yaml.Unmarshal([]byte(ss.Data.ConfigYaml), cfg)
+	err = yaml.Unmarshal([]byte(ss.Config.Original), cfg)
 
 	return cfg, err
 }
