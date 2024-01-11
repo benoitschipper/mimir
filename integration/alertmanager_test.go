@@ -105,7 +105,7 @@ func TestAlertmanager(t *testing.T) {
 	assertServiceMetricsPrefixes(t, AlertManager, alertmanager)
 
 	// Test compression by inspecting the response Headers
-	req, err := http.NewRequest("GET", fmt.Sprintf("http://%s/api/v2/alerts", alertmanager.HTTPEndpoint()), nil)
+	req, err := http.NewRequest("GET", fmt.Sprintf("http://%s/api/v1/alerts", alertmanager.HTTPEndpoint()), nil)
 	require.NoError(t, err)
 
 	req.Header.Set("X-Scope-OrgID", "user-1")

@@ -440,8 +440,8 @@ func (c *Client) GetPrometheusRules() ([]*promv1.RuleGroup, error) {
 		} `json:"data"`
 	}
 
-	decoded := &response{}
-	if err := json.Unmarshal(body, decoded); err != nil {
+	decoded := response{}
+	if err := json.Unmarshal(body, &decoded); err != nil {
 		return nil, err
 	}
 
@@ -755,6 +755,7 @@ func (c *Client) SendAlertToAlermanager(ctx context.Context, alert *model.Alert)
 	if err != nil {
 		return fmt.Errorf("error creating request: %v", err)
 	}
+	req.Header.Set("Content-Type", "application/json")
 
 	resp, body, err := c.alertmanagerClient.Do(ctx, req)
 	if err != nil {
@@ -843,6 +844,7 @@ func (c *Client) CreateSilence(ctx context.Context, silence types.Silence) (stri
 	if err != nil {
 		return "", fmt.Errorf("error creating request: %v", err)
 	}
+	req.Header.Set("Content-Type", "application/json")
 
 	resp, body, err := c.alertmanagerClient.Do(ctx, req)
 	if err != nil {
@@ -854,22 +856,15 @@ func (c *Client) CreateSilence(ctx context.Context, silence types.Silence) (stri
 	}
 
 	type response struct {
-		Status string `json:"status"`
-		Data   struct {
-			SilenceID string `json:"silenceID"`
-		} `json:"data"`
+		SilenceID string `json:"silenceID"`
 	}
 
-	decoded := &response{}
-	if err := json.Unmarshal(body, decoded); err != nil {
+	decoded := response{}
+	if err := json.Unmarshal(body, &decoded); err != nil {
 		return "", err
 	}
 
-	if decoded.Status != "success" {
-		return "", fmt.Errorf("unexpected response status '%s'", decoded.Status)
-	}
-
-	return decoded.Data.SilenceID, nil
+	return decoded.SilenceID, nil
 }
 
 func (c *Client) GetSilences(ctx context.Context) ([]types.Silence, error) {
@@ -975,21 +970,20 @@ func (c *Client) GetReceivers(ctx context.Context) ([]string, error) {
 		return nil, fmt.Errorf("getting receivers failed with status %d and error %v", resp.StatusCode, string(body))
 	}
 
-	type response struct {
-		Status string   `json:"status"`
-		Data   []string `json:"data"`
+	type response []struct {
+		Name string `json:"name"`
 	}
 
-	decoded := &response{}
-	if err := json.Unmarshal(body, decoded); err != nil {
+	decoded := response{}
+	if err := json.Unmarshal(body, &decoded); err != nil {
 		return nil, err
 	}
 
-	if decoded.Status != "success" {
-		return nil, fmt.Errorf("unexpected response status '%s'", decoded.Status)
+	var receivers []string
+	for _, v := range decoded {
+		receivers = append(receivers, v.Name)
 	}
-
-	return decoded.Data, nil
+	return receivers, nil
 }
 
 // DoGet performs a HTTP GET request towards the supplied URL. The request
