@@ -15,11 +15,13 @@ var (
 
 type Config struct {
 	Enabled     bool        `yaml:"enabled"`
+	Zone        string      `yaml:"availability_zone"`
 	KafkaConfig KafkaConfig `yaml:"kafka"`
 }
 
 func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
 	f.BoolVar(&cfg.Enabled, "ingest-storage.enabled", false, "True to enable the ingestion via object storage.")
+	f.StringVar(&cfg.Zone, "ingest-storage.availability-zone", "", "The availability zone of the current instance. This option is used by queriers when selecting which ingesters to query. It should match the -ring.instance-availability-zone value of the ingester zone.")
 
 	cfg.KafkaConfig.RegisterFlagsWithPrefix("ingest-storage.kafka", f)
 }

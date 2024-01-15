@@ -5738,7 +5738,7 @@ func TestQueryQuorumConfig_ZoneSorting(t *testing.T) {
 				ZoneAwarenessEnabled: true,
 			}
 
-			cfg := d.queryQuorumConfig(context.Background(), replicationSet)
+			cfg := d.queryQuorumConfigClassic(context.Background(), replicationSet)
 			sorted := cfg.ZoneSorter(uniqueZones(testCase.instances))
 
 			testCase.verify(t, sorted)
