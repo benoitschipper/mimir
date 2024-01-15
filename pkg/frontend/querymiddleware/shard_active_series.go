@@ -148,10 +148,22 @@ func buildShardedRequests(ctx context.Context, req *http.Request, numRequests in
 		vals := url.Values{}
 		vals.Set("selector", sharded.String())
 
-		reqs[i].Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		// Remove headers that we have consumed ourselves.
 		reqs[i].Header.Del(totalShardsControlHeader)
 		reqs[i].Header.Del("Accept-Encoding")
-		reqs[i].Body = io.NopCloser(strings.NewReader(vals.Encode()))
+
+		// Populate the request with the shard selector.
+		req.Form = nil
+		req.PostForm = nil
+		switch req.Method {
+		case http.MethodPost:
+			reqs[i].URL.RawQuery = ""
+			reqs[i].Body = io.NopCloser(strings.NewReader(vals.Encode()))
+		case http.MethodGet:
+			reqs[i].URL.RawQuery = vals.Encode()
+		default:
+			return nil, fmt.Errorf("unsupported method: %s", req.Method)
+		}
 	}
 
 	return reqs, nil
