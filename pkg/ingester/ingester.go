@@ -3638,7 +3638,7 @@ func (i *Ingester) partitionRingStarting(ctx context.Context) error {
 		}
 
 		// Also add partition owner (ingester) to the ring.
-		if pr.AddOrUpdateOwner(i.lifecycler.ID, i.lifecycler.Addr, i.lifecycler.Zone, []int32{i.partitionID}, i.lifecycler.GetState(), time.Now()) {
+		if pr.AddOrUpdateOwner(i.lifecycler.ID, i.lifecycler.Addr, i.lifecycler.Zone, i.partitionID, i.lifecycler.GetState(), time.Now()) {
 			changed = true
 		}
 
@@ -3676,7 +3676,7 @@ func (i *Ingester) partitionRingRunning(ctx context.Context) error {
 		}
 
 		// Update entry in the ring with current state and heartbeat.
-		if pr.AddOrUpdateOwner(i.lifecycler.ID, i.lifecycler.Addr, i.lifecycler.Zone, []int32{i.partitionID}, i.lifecycler.GetState(), time.Now()) {
+		if pr.AddOrUpdateOwner(i.lifecycler.ID, i.lifecycler.Addr, i.lifecycler.Zone, i.partitionID, i.lifecycler.GetState(), time.Now()) {
 			return pr, true, nil
 		}
 		return nil, false, nil
